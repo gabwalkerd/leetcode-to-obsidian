@@ -138,4 +138,4 @@ leetcode-to-obsidian/
 
 ## 📄 开源协议
 
-基于 [MIT License](#开源协议) 发布。QuickAdd 脚本部分基于 Shane Zimmerman 的工作改造而来，针对力扣中国站新增了剪贴板代码传递能力。
+基于 [MIT License](#开源协议) 发布。QuickAdd 脚本部分基于 Shane Zimmerman 的工作（[zimmshane/leetcode-puller-obsidian](https://github.com/zimmshane/leetcode-puller-obsidian)）改造而来，针对力扣中国站新增了剪贴板代码传递能力。

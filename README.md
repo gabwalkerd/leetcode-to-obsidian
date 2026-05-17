@@ -138,4 +138,4 @@ Issues and pull requests are welcome. Please describe your environment (Obsidian
 
 ## 📄 License
 
-Released under the [MIT License](#license). The QuickAdd script is adapted from work by Shane Zimmerman, modified for LeetCode CN with clipboard-based code handoff.
+Released under the [MIT License](#license). The QuickAdd script is adapted from work by Shane Zimmerman ([zimmshane/leetcode-puller-obsidian](https://github.com/zimmshane/leetcode-puller-obsidian)), modified for LeetCode CN with clipboard-based code handoff.
