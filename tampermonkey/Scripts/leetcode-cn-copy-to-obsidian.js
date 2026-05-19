@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeetCode CN Copy to Obsidian
 // @namespace    https://leetcode.cn/
-// @version      0.5.0
+// @version      0.6.0
 // @description  Copy current LeetCode CN problem URL and full editor code to clipboard for Obsidian QuickAdd.
 // @match        https://leetcode.cn/problems/*
 // @grant        GM_setClipboard
@@ -25,6 +25,19 @@
      * 看哪个 index 是完整代码，然后把这里改成对应数字。
      */
     const MODEL_INDEX_OVERRIDE = null;
+
+    /**
+     * 复制到 Obsidian 前是否对代码做简单格式化。
+     *
+     * 当前格式化策略是保守的：
+     * - 所有语言：统一换行、清理行尾空白、压缩过多空行
+     * - C++ 风格大括号语言：根据 { } 重新计算基础缩进
+     * - 大括号语言：控制语句括号前补空格，常见运算符和逗号补空格
+     * - C++：public/private/protected 顶格
+     * - Python / Ruby 等缩进敏感或非大括号语言：只做空白清理
+     */
+    const FORMAT_CODE_BEFORE_COPY = true;
+    const FORMAT_INDENT_SIZE = 4;
 
     function getMonaco() {
         return unsafeWindow.monaco || window.monaco;
@@ -302,6 +315,204 @@
         };
     }
 
+    function shouldUseBraceFormatter(language) {
+        return [
+            "cpp",
+            "java",
+            "javascript",
+            "typescript",
+            "go",
+            "rust",
+            "c",
+            "csharp",
+            "kotlin",
+            "swift",
+            "scala",
+            "php",
+        ].includes(normalizeLanguage(language));
+    }
+
+    function normalizeCodeWhitespace(code, language) {
+        let result = String(code || "")
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n")
+            .split("\n")
+            .map((line) => line.replace(/[ \t]+$/g, ""))
+            .join("\n")
+            .replace(/\n{4,}/g, "\n\n\n")
+            .trim();
+
+        // Python 对缩进敏感，这里只做低风险清理，不主动重排缩进。
+        if (normalizeLanguage(language) === "python") {
+            result = result.replace(/\t/g, "    ");
+        }
+
+        return result;
+    }
+
+    function stripLineForBraceCount(line) {
+        return String(line || "")
+            .replace(/\/\*.*?\*\//g, "")
+            .replace(/\/\/.*$/g, "")
+            .replace(/#.*$/g, "")
+            .replace(/"(?:\\.|[^"\\])*"/g, '""')
+            .replace(/'(?:\\.|[^'\\])*'/g, "''")
+            .replace(/`(?:\\.|[^`\\])*`/g, "``");
+    }
+
+    function countChar(text, char) {
+        return (String(text || "").match(new RegExp(`\\${char}`, "g")) || []).length;
+    }
+
+    function shouldUseBraceLanguageSyntaxSpacing(language) {
+        return shouldUseBraceFormatter(language);
+    }
+
+    function protectStringLiterals(text) {
+        const literals = [];
+        const protectedText = String(text || "").replace(
+            /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/g,
+            (match) => {
+                const token = `__LC_OBSIDIAN_STRING_${literals.length}__`;
+                literals.push(match);
+                return token;
+            }
+        );
+
+        return {
+            text: protectedText,
+            restore(value) {
+                return String(value || "").replace(/__LC_OBSIDIAN_STRING_(\d+)__/g, (_, index) => {
+                    return literals[Number(index)] || "";
+                });
+            },
+        };
+    }
+
+    function splitInlineComment(line) {
+        const protectedLine = protectStringLiterals(line);
+        const commentIndex = protectedLine.text.indexOf("//");
+
+        if (commentIndex < 0) {
+            return {
+                code: line,
+                comment: "",
+            };
+        }
+
+        return {
+            code: protectedLine.restore(protectedLine.text.slice(0, commentIndex)).trimEnd(),
+            comment: protectedLine.restore(protectedLine.text.slice(commentIndex)),
+        };
+    }
+
+    function normalizeBraceLanguageOperatorSpacing(code) {
+        let result = String(code || "");
+
+        result = result.replace(/\b(if|for|while|switch|catch)\s*\(/g, "$1 (");
+        result = result.replace(/,\s*/g, ", ");
+        result = result.replace(/\s*(<=|>=|==|!=)\s*/g, " $1 ");
+        result = result.replace(/([^<>=!+\-*/%&|^])\s*=\s*([^=])/g, "$1 = $2");
+
+        // 只处理最常见的二元算术运算，避免改动指针、引用、模板等 C++ 语法。
+        result = result.replace(/([A-Za-z0-9_\]\)])\s*([+\-*/%])\s*([A-Za-z0-9_(\[])/g, "$1 $2 $3");
+
+        // 按用户偏好，++ / -- 与操作数之间保留空格。
+        result = result
+            .replace(/([A-Za-z0-9_\]\)])\s*(\+\+|--)/g, "$1 $2")
+            .replace(/(\+\+|--)\s*([A-Za-z0-9_(\[])/g, "$1 $2");
+
+        return result.replace(/\s{2,}/g, " ").trim();
+    }
+
+    function formatLineSyntax(line, language) {
+        if (!shouldUseBraceLanguageSyntaxSpacing(language)) {
+            return line;
+        }
+
+        if (/^\s*#/.test(line) || /^\s*\/\//.test(line)) {
+            return line.trim();
+        }
+
+        const parts = splitInlineComment(line);
+        const protectedCode = protectStringLiterals(parts.code);
+        const formattedCode = protectedCode.restore(
+            normalizeBraceLanguageOperatorSpacing(protectedCode.text)
+        );
+
+        if (!parts.comment) {
+            return formattedCode;
+        }
+
+        if (!formattedCode) {
+            return parts.comment.trim();
+        }
+
+        return `${formattedCode} ${parts.comment.trim()}`;
+    }
+
+    function formatBraceBasedCode(code, language) {
+        const normalized = normalizeCodeWhitespace(code, language);
+        const lines = normalized.split("\n");
+        const indentUnit = " ".repeat(FORMAT_INDENT_SIZE);
+        let indentLevel = 0;
+
+        return lines
+            .map((line) => {
+                const trimmed = line.trim();
+
+                if (!trimmed) {
+                    return "";
+                }
+
+                // C/C++ 预处理指令通常保持顶格，更符合工具链和阅读习惯。
+                if (trimmed.startsWith("#") && ["c", "cpp"].includes(normalizeLanguage(language))) {
+                    return trimmed;
+                }
+
+                const braceScanText = stripLineForBraceCount(trimmed);
+                const leadingCloseBraces = (braceScanText.match(/^}+/) || [""])[0].length;
+                const currentIndentLevel = Math.max(indentLevel - leadingCloseBraces, 0);
+                const lineIndentLevel = /^(public|private|protected)\s*:\s*$/.test(trimmed)
+                    ? Math.max(currentIndentLevel - 1, 0)
+                    : currentIndentLevel;
+                const formattedLine = `${indentUnit.repeat(lineIndentLevel)}${formatLineSyntax(
+                    trimmed,
+                    language
+                )}`;
+
+                const openCount = countChar(braceScanText, "{");
+                const closeCount = countChar(braceScanText, "}");
+                indentLevel = Math.max(currentIndentLevel + openCount - closeCount + leadingCloseBraces, 0);
+
+                return formattedLine;
+            })
+            .join("\n")
+            .trim();
+    }
+
+    function formatSolutionCodeForClipboard(code, language) {
+        const normalizedLanguage = normalizeLanguage(language);
+        const originalCode = String(code || "");
+        const cleanedCode = normalizeCodeWhitespace(originalCode, normalizedLanguage);
+
+        if (!shouldUseBraceFormatter(normalizedLanguage)) {
+            return {
+                code: cleanedCode,
+                changed: cleanedCode !== originalCode,
+                formatter: "whitespace",
+            };
+        }
+
+        const formattedCode = formatBraceBasedCode(cleanedCode, normalizedLanguage);
+
+        return {
+            code: formattedCode,
+            changed: formattedCode !== originalCode,
+            formatter: "simple-brace-indent",
+        };
+    }
+
     function copyPayloadToClipboard(payload) {
         const text = JSON.stringify(payload, null, 2);
 
@@ -323,15 +534,24 @@
         }
 
         const solution = getCurrentSolution();
-        const code = solution.code || "";
+        const rawCode = solution.code || "";
         const language = normalizeLanguage(solution.language || "cpp");
 
-        if (!code.trim()) {
+        if (!rawCode.trim()) {
             console.warn("[LeetCode Copy to Obsidian] 没有读取到代码，请确认代码编辑器已加载");
             console.warn("[LeetCode Copy to Obsidian] monaco:", getMonaco());
             flashButton(false);
             return;
         }
+
+        const formatResult = FORMAT_CODE_BEFORE_COPY
+            ? formatSolutionCodeForClipboard(rawCode, language)
+            : {
+                code: rawCode,
+                changed: false,
+                formatter: "disabled",
+            };
+        const code = formatResult.code || rawCode;
 
         const payload = {
             type: "leetcode-cn-obsidian",
@@ -340,6 +560,11 @@
             titleSlug,
             language,
             code,
+            rawCode,
+            format: {
+                formatter: formatResult.formatter,
+                changed: formatResult.changed,
+            },
             copiedAt: new Date().toISOString(),
         };
 
@@ -350,6 +575,9 @@
                 titleSlug,
                 language,
                 codeLength: code.length,
+                rawCodeLength: rawCode.length,
+                formatter: formatResult.formatter,
+                formatted: formatResult.changed,
                 codePreview: code.slice(0, 200),
                 codeTail: code.slice(-200),
             });
