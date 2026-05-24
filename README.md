@@ -111,6 +111,25 @@ The QuickAdd script exposes the following variables for templates:
 | `{{VALUE:solutionCode}}` | Your solution code |
 | `{{VALUE:sourceUrl}}` | Source URL (from userscript) |
 | `{{VALUE:titleSlug}}` | Problem slug |
+| `{{VALUE:type}}` | Note type (always `leetcode`, used by Dataview queries) |
+| `{{VALUE:status}}` | Completion status (always `done`, used by Dataview queries) |
+| `{{VALUE:doneDate}}` | Completion date (`YYYY-MM-DD`, defaults to today) |
+| `{{VALUE:createdAt}}` | Note creation timestamp (`YYYY-MM-DD HH:mm:ss`, defaults to now) |
+| `{{VALUE:lcId}}` | LeetCode internal problem number (same as `id`, used by DataviewJS sorting) |
+| `{{VALUE:difficultyRaw}}` | Raw difficulty identifier (`Easy` / `Medium` / `Hard`, English) |
+
+## 📊 Practice statistics
+
+This repo ships a DataviewJS statistics page [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md) that automatically groups your solved problems by completion date.
+
+To use it:
+
+1. Copy `statistics/leetcode-statistics.md` into your Obsidian vault.
+2. Install the [Dataview](https://github.com/blacksmithgu/obsidian-dataview) plugin (JavaScript queries must be enabled).
+3. Ensure notes in your `notes/leetcode` folder have `type: leetcode`, `status: done`, and `done_date` fields (the new templates generate these automatically).
+4. Open the statistics page to see problems grouped by date, showing problem number, title, difficulty and a link to the note.
+
+> **Tip**: The templates now include `type`, `status`, `done_date`, `lc_id` and other frontmatter fields that power the DataviewJS statistics feature.
 
 ## 🛠️ Troubleshooting
 
@@ -126,8 +145,10 @@ leetcode-to-obsidian/
 ├── Scripts/
 │   └── leetcode-quickadd.js                 # QuickAdd user script for Obsidian
 ├── Templates/
-│   ├── leetcode-problem-template.md         # English template (legacy)
+│   ├── leetcode-problem-template.md         # English template
 │   └── leetcode-problem-template_zh.md      # Chinese template (recommended)
+├── statistics/
+│   └── leetcode-statistics.md               # DataviewJS practice statistics page
 └── tampermonkey/Scripts/
     └── leetcode-cn-copy-to-obsidian.js      # Userscript for leetcode.cn
 ```
