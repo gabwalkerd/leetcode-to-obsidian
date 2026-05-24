@@ -245,13 +245,20 @@ style.textContent = `
 .leetcode-months {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 119px;
-  gap: 0;
+  grid-auto-columns: 13px;
+  gap: 4px;
   width: max-content;
   color: var(--text-muted);
   font-size: 13px;
   margin-left: 0;
   margin-bottom: 4px;
+  overflow: visible;
+}
+
+.leetcode-months > div {
+  width: max-content;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .leetcode-legend {
@@ -441,23 +448,37 @@ while (cursor.isSameOrBefore(endDate, "day")) {
   cursor.add(1, "day");
 }
 
-// 月份标签：按周列展示
+// 月份标签：按周列展示，只在每月 1 号所在周显示月份
 const weeks = [];
 for (let i = 0; i < allDates.length; i += 7) {
   weeks.push(allDates.slice(i, i + 7));
 }
 
-let lastMonth = "";
+let lastMonthKey = "";
+let lastLabelWeekIndex = -999;
 
-for (const week of weeks) {
-  const firstDay = week[0];
-  const month = firstDay.format("M月");
+// 至少间隔 3 周才允许显示下一个月份标签，避免 11月 / 12月 这种贴太近重叠
+const MIN_MONTH_LABEL_GAP = 3;
 
+for (let i = 0; i < weeks.length; i++) {
+  const week = weeks[i];
   const monthEl = document.createElement("div");
 
-  if (month !== lastMonth) {
-    monthEl.textContent = month;
-    lastMonth = month;
+  const firstDayOfMonth = week.find(d => d.date() === 1);
+
+  if (firstDayOfMonth) {
+    const monthKey = firstDayOfMonth.format("YYYY-MM");
+
+    if (
+      monthKey !== lastMonthKey &&
+      i - lastLabelWeekIndex >= MIN_MONTH_LABEL_GAP
+    ) {
+      monthEl.textContent = firstDayOfMonth.format("M月");
+      lastMonthKey = monthKey;
+      lastLabelWeekIndex = i;
+    } else {
+      monthEl.textContent = "";
+    }
   } else {
     monthEl.textContent = "";
   }
@@ -504,6 +525,10 @@ heatmapWrap.appendChild(heatmap);
 heatmapWrap.appendChild(legend);
 dashboard.appendChild(heatmapWrap);
 
+requestAnimationFrame(() => {
+  heatmapWrap.scrollLeft = heatmapWrap.scrollWidth;
+});
+
 // 默认显示今天；如果今天没有记录，则显示最近一天
 const latestDate = records.length > 0 ? records[0].date : today.format("YYYY-MM-DD");
 renderDetail(byDate.has(today.format("YYYY-MM-DD")) ? today.format("YYYY-MM-DD") : latestDate);
@@ -543,3 +568,19 @@ if (sortedDates.length === 0) {
   }
 }
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
