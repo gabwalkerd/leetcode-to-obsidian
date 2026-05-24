@@ -29,7 +29,7 @@ tags:
 
 {{VALUE:formattedHints}}
 
-## 算法一
+## 算法
 
 ### 解题思路
 

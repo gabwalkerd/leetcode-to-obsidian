@@ -111,6 +111,25 @@ QuickAdd 脚本会向模板暴露以下变量：
 | `{{VALUE:solutionCode}}` | 你的解题代码 |
 | `{{VALUE:sourceUrl}}` | 源 URL（来自油猴脚本） |
 | `{{VALUE:titleSlug}}` | 题目 slug |
+| `{{VALUE:type}}` | 笔记类型（固定 `leetcode`，供 Dataview 查询） |
+| `{{VALUE:status}}` | 完成状态（固定 `done`，供 Dataview 查询） |
+| `{{VALUE:doneDate}}` | 刷题完成日期（`YYYY-MM-DD`，默认当天） |
+| `{{VALUE:createdAt}}` | 笔记创建时间（`YYYY-MM-DD HH:mm:ss`，默认当前时刻） |
+| `{{VALUE:lcId}}` | 力扣内部题号（与 `id` 相同，供 DataviewJS 排序使用） |
+| `{{VALUE:difficultyRaw}}` | 原始难度标识（`Easy` / `Medium` / `Hard`，英文） |
+
+## 📊 刷题统计
+
+仓库内置了一份 DataviewJS 统计页面 [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md)，按完成日期自动分组展示你已刷完的题目。
+
+使用方法：
+
+1. 把 `statistics/leetcode-statistics.md` 复制到你的 Obsidian Vault。
+2. 安装 [Dataview](https://github.com/blacksmithgu/obsidian-dataview) 插件（需要开启 JavaScript 查询）。
+3. 确保笔记的 `notes/leetcode` 文件夹下有 `type: leetcode`、`status: done`、`done_date` 字段（新模板已自动生成这些字段）。
+4. 打开统计页面即可查看按日期分组的刷题记录，包括题号、题目名、难度和笔记链接。
+
+> **提示**：模板新增了 `type`、`status`、`done_date`、`lc_id` 等 frontmatter 字段，这些字段是 DataviewJS 统计功能的基础。
 
 ## 🛠️ 常见问题
 
@@ -126,8 +145,10 @@ leetcode-to-obsidian/
 ├── Scripts/
 │   └── leetcode-quickadd.js                 # Obsidian 端的 QuickAdd 脚本
 ├── Templates/
-│   ├── leetcode-problem-template.md         # 英文模板（早期版本）
+│   ├── leetcode-problem-template.md         # 英文模板
 │   └── leetcode-problem-template_zh.md      # 中文模板（推荐）
+├── statistics/
+│   └── leetcode-statistics.md               # DataviewJS 刷题统计页面
 └── tampermonkey/Scripts/
     └── leetcode-cn-copy-to-obsidian.js      # 力扣中国站的油猴脚本
 ```
