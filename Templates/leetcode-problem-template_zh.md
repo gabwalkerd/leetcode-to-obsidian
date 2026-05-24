@@ -29,17 +29,19 @@ tags:
 
 {{VALUE:formattedHints}}
 
-## 解题思路
+## 算法一
+
+### 解题思路
 
 
 
-## 代码实现
+### 代码实现
 
 ```{{VALUE:language}}
 {{VALUE:solutionCode}}
 ```
 
-## 复杂度分析
+### 复杂度分析
 
 - 时间复杂度：
 - 空间复杂度：

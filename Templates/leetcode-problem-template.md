@@ -29,17 +29,19 @@ tags:
 
 {{VALUE:formattedHints}}
 
-## Approach
+## Algorithm
+
+### Approach
 
 
 
-## Solution
+### Solution
 
 ```{{VALUE:language}}
 {{VALUE:solutionCode}}
 ```
 
-## Complexity Analysis
+### Complexity Analysis
 
 - Time complexity:
 - Space complexity:
