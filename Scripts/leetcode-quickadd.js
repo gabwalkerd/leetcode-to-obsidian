@@ -8,7 +8,8 @@
  *      "url": "https://leetcode.cn/problems/two-sum/",
  *      "titleSlug": "two-sum",
  *      "language": "cpp",
- *      "code": "class Solution { ... }"
+ *      "code": "class Solution { ... }",
+ *      "doneDate": "2026-05-23" // 可选；不提供时脚本自动使用当天日期
  *    }
  *
  * 2. 如果剪贴板没有有效 payload，则退回手动模式：
@@ -33,6 +34,12 @@
  *    {{VALUE:solutionCode}}
  *    {{VALUE:sourceUrl}}
  *    {{VALUE:titleSlug}}
+ *    {{VALUE:type}}
+ *    {{VALUE:status}}
+ *    {{VALUE:doneDate}}
+ *    {{VALUE:createdAt}}
+ *    {{VALUE:lcId}}
+ *    {{VALUE:difficultyRaw}}
  */
 
 // ==============================
@@ -119,6 +126,8 @@ async function getProblemContext() {
         const language = normalizeMarkdownLanguage(payload.language || "cpp");
         const solutionCode = payload.code || "";
         const sourceUrl = payload.url || `https://leetcode.cn/problems/${titleSlug}/`;
+        const doneDate = normalizeDateValue(payload.doneDate || payload.done_date || payload.date) || getTodayLocalDate();
+        const createdAt = normalizeDateTimeValue(payload.createdAt || payload.created_at || payload.datetime) || getNowLocalDateTime();
 
         notice("已从剪贴板读取 LeetCode 代码。");
 
@@ -127,6 +136,8 @@ async function getProblemContext() {
             sourceUrl,
             language,
             solutionCode,
+            doneDate,
+            createdAt,
             fromClipboard: true,
         };
     }
@@ -145,6 +156,8 @@ async function getProblemContext() {
             sourceUrl: manualPayload.url || `https://leetcode.cn/problems/${titleSlug}/`,
             language: normalizeMarkdownLanguage(manualPayload.language || "cpp"),
             solutionCode: manualPayload.code || "",
+            doneDate: normalizeDateValue(manualPayload.doneDate || manualPayload.done_date || manualPayload.date) || getTodayLocalDate(),
+            createdAt: normalizeDateTimeValue(manualPayload.createdAt || manualPayload.created_at || manualPayload.datetime) || getNowLocalDateTime(),
             fromClipboard: false,
         };
     }
@@ -161,6 +174,8 @@ async function getProblemContext() {
             : `https://leetcode.cn/problems/${titleSlug}/`,
         language: "cpp",
         solutionCode: solutionCode || "",
+        doneDate: getTodayLocalDate(),
+        createdAt: getNowLocalDateTime(),
         fromClipboard: false,
     };
 }
@@ -391,6 +406,7 @@ query questionData($titleSlug: String!) {
             title: q.translatedTitle || q.title || "",
             titleSlug: q.titleSlug || titleSlug,
             difficulty: translateDifficulty(q.difficulty || ""),
+            difficultyRaw: q.difficulty || "",
             link: `https://leetcode.cn/problems/${titleSlug}/`,
             topicTags: q.topicTags || [],
             problemStatement: formatProblemStatement(q.translatedContent || q.content || ""),
@@ -408,8 +424,18 @@ query questionData($titleSlug: String!) {
 // ==============================
 
 function setQuickAddVariables(problemData, context) {
+    const doneDate = context.doneDate || getTodayLocalDate();
+    const createdAt = context.createdAt || getNowLocalDateTime();
+
     QuickAdd.variables = {
         ...problemData,
+
+        // Dataview / DataviewJS 统计核心字段。
+        type: "leetcode",
+        status: "done",
+        doneDate,
+        createdAt,
+        lcId: problemData.id || "",
 
         fileName: `${problemData.id}. ${replaceIllegalFileNameCharactersInString(problemData.title)}`,
 
@@ -809,6 +835,76 @@ function formatHints(hints) {
             return `>[!Hint]- 提示 ${index + 1}\n>${text}`;
         })
         .join("\n\n");
+}
+
+
+// ==============================
+// 日期工具：用于 DataviewJS 统计
+// ==============================
+
+function getTodayLocalDate() {
+    const now = new Date();
+    return formatLocalDate(now);
+}
+
+function getNowLocalDateTime() {
+    const now = new Date();
+    return `${formatLocalDate(now)} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+}
+
+function formatLocalDate(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
+
+function normalizeDateValue(value) {
+    if (!value) return "";
+
+    const text = String(value).trim();
+    if (!text) return "";
+
+    // 已经是 YYYY-MM-DD。
+    const isoDate = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (isoDate) {
+        return `${isoDate[1]}-${pad2(isoDate[2])}-${pad2(isoDate[3])}`;
+    }
+
+    // 兼容 YYYY/MM/DD、YYYY.MM.DD、YYYY年MM月DD日。
+    const looseDate = text.match(/^(\d{4})[\/.年-](\d{1,2})[\/.月-](\d{1,2})/);
+    if (looseDate) {
+        return `${looseDate[1]}-${pad2(looseDate[2])}-${pad2(looseDate[3])}`;
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+        return formatLocalDate(parsed);
+    }
+
+    return "";
+}
+
+function normalizeDateTimeValue(value) {
+    if (!value) return "";
+
+    const text = String(value).trim();
+    if (!text) return "";
+
+    const datePart = normalizeDateValue(text);
+    const timeMatch = text.match(/(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+
+    if (datePart && timeMatch) {
+        return `${datePart} ${pad2(timeMatch[1])}:${pad2(timeMatch[2])}:${pad2(timeMatch[3] || 0)}`;
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+        return `${formatLocalDate(parsed)} ${pad2(parsed.getHours())}:${pad2(parsed.getMinutes())}:${pad2(parsed.getSeconds())}`;
+    }
+
+    return datePart;
 }
 
 // ==============================

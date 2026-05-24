@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LeetCode CN Copy to Obsidian
 // @namespace    https://leetcode.cn/
-// @version      0.6.0
-// @description  Copy current LeetCode CN problem URL and full editor code to clipboard for Obsidian QuickAdd.
+// @version      0.7.0
+// @description  Copy current LeetCode CN problem URL, code, and completion metadata to clipboard for Obsidian QuickAdd.
 // @match        https://leetcode.cn/problems/*
 // @grant        GM_setClipboard
 // @grant        unsafeWindow
@@ -38,6 +38,24 @@
      */
     const FORMAT_CODE_BEFORE_COPY = true;
     const FORMAT_INDENT_SIZE = 4;
+
+    function pad2(n) {
+        return String(n).padStart(2, "0");
+    }
+
+    function getLocalDateParts(date = new Date()) {
+        const yyyy = date.getFullYear();
+        const mm = pad2(date.getMonth() + 1);
+        const dd = pad2(date.getDate());
+        const hh = pad2(date.getHours());
+        const min = pad2(date.getMinutes());
+        const ss = pad2(date.getSeconds());
+
+        return {
+            doneDate: `${yyyy}-${mm}-${dd}`,
+            createdAt: `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`,
+        };
+    }
 
     function getMonaco() {
         return unsafeWindow.monaco || window.monaco;
@@ -552,20 +570,26 @@
                 formatter: "disabled",
             };
         const code = formatResult.code || rawCode;
+        const now = new Date();
+        const { doneDate, createdAt } = getLocalDateParts(now);
 
         const payload = {
             type: "leetcode-cn-obsidian",
-            version: 1,
+            version: 2,
             url: location.href,
             titleSlug,
             language,
             code,
             rawCode,
+            doneDate,
+            done_date: doneDate,
+            createdAt,
+            created_at: createdAt,
+            copiedAt: now.toISOString(),
             format: {
                 formatter: formatResult.formatter,
                 changed: formatResult.changed,
             },
-            copiedAt: new Date().toISOString(),
         };
 
         try {
@@ -574,6 +598,8 @@
             console.log("[LeetCode Copy to Obsidian] copied payload:", {
                 titleSlug,
                 language,
+                doneDate,
+                createdAt,
                 codeLength: code.length,
                 rawCodeLength: rawCode.length,
                 formatter: formatResult.formatter,
