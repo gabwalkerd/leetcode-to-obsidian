@@ -337,9 +337,134 @@ outline: 2px solid var(--text-accent);
 outline-offset: 2px;  
 }
 
+
+.leetcode-daily-section {
+  margin-top: 2.4rem;
+}
+
+.leetcode-daily-title {
+  margin: 0 0 1.25rem 0;
+  font-size: 1.65rem;
+  line-height: 1.25;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.leetcode-day-block {
+  margin: 0 0 2.6rem 0;
+  padding: 18px 18px 22px 18px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 16px;
+  background: var(--background-secondary);
+}
+
+.leetcode-day-block + .leetcode-day-block {
+  margin-top: 2.1rem;
+}
+
+.leetcode-day-heading {
+  margin: 0 0 1.05rem 0;
+  padding-left: 12px;
+  border-left: 4px solid var(--text-accent);
+  color: var(--text-accent);
+  font-size: 1.45rem;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.leetcode-day-table-wrap {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.leetcode-day-table {
+  width: 100%;
+  min-width: 0;
+}
+
+.leetcode-day-row {
+  display: grid;
+  /*
+   * 题号列适当加宽：让“题目”列回到更自然的位置；
+   * 题目列改为固定上限：避免短题目时仍把“难度”列推得很远；
+   * 剩余空间全部交给文件列，因此不会再出现横向滚动条。
+   */
+  grid-template-columns: 200px minmax(260px, 360px) 86px minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+  min-height: 34px;
+  padding: 5px 12px;
+  box-sizing: border-box;
+}
+
+.leetcode-day-row.header {
+  min-height: 40px;
+  border-bottom: 2px solid var(--text-muted);
+  color: var(--text-normal);
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.leetcode-day-row:not(.header) {
+  border-bottom: 1px dashed var(--background-modifier-border);
+}
+
+.leetcode-day-row:not(.header):last-child {
+  border-bottom: none;
+}
+
+.leetcode-day-cell {
+  min-width: 0;
+  text-align: left;
+}
+
+.leetcode-day-cell.title,
+.leetcode-day-cell.file {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.leetcode-day-cell.file .internal-link {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.leetcode-difficulty {
+  font-weight: 700;
+}
+
+.leetcode-difficulty.easy {
+  color: #3fb950;
+}
+
+.leetcode-difficulty.medium {
+  color: #d29922;
+}
+
+.leetcode-difficulty.hard {
+  color: #f85149;
+}
+
+@media (max-width: 900px) {
+  .leetcode-day-row {
+    grid-template-columns: 120px minmax(180px, 1fr) 76px minmax(0, 0.9fr);
+    column-gap: 12px;
+  }
+}
+
 @media (max-width: 700px) {
   .leetcode-summary {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .leetcode-day-row {
+    grid-template-columns: 72px minmax(120px, 1fr) 64px minmax(0, 0.8fr);
+    column-gap: 10px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }
 `;
@@ -536,9 +661,17 @@ dashboard.appendChild(detail);
 
 // ==============================
 // Render Daily Tables
+// 使用自定义 grid 表格，避免不同日期因题目长度不同导致列不对齐
 // ==============================
 
-dv.header(2, "每日完成明细");
+const dailyRoot = dv.el("div", "", {
+  cls: "leetcode-daily-section"
+});
+
+const dailyTitle = document.createElement("div");
+dailyTitle.className = "leetcode-daily-title";
+dailyTitle.textContent = "每日完成明细";
+dailyRoot.appendChild(dailyTitle);
 
 const groups = records.reduce((map, record) => {
   if (!map.has(record.date)) map.set(record.date, []);
@@ -548,39 +681,81 @@ const groups = records.reduce((map, record) => {
 
 const sortedDates = Array.from(groups.keys()).sort((a, b) => b.localeCompare(a));
 
+function createDayCell(text, cls = "") {
+  const cell = document.createElement("div");
+  cell.className = `leetcode-day-cell ${cls}`.trim();
+  cell.textContent = text;
+  cell.title = text;
+  return cell;
+}
+
+function createInternalLink(path, text) {
+  const link = document.createElement("a");
+  link.href = path;
+  link.className = "internal-link";
+  link.textContent = text;
+  link.title = text;
+  return link;
+}
+
 if (sortedDates.length === 0) {
-  dv.paragraph("没有找到满足条件的 LeetCode 题解。");
+  const empty = document.createElement("div");
+  empty.className = "leetcode-detail-empty";
+  empty.textContent = "没有找到满足条件的 LeetCode 题解。";
+  dailyRoot.appendChild(empty);
 } else {
   for (const date of sortedDates) {
     const list = groups.get(date).sort((a, b) => a.lcId - b.lcId);
 
-    dv.header(3, `${date} ｜完成 ${list.length} 题`);
+    const block = document.createElement("section");
+    block.className = "leetcode-day-block";
 
-    dv.table(
-      ["题号", "题目", "难度", "文件"],
-      list.map(item => [
-        item.lcId === 999999 ? "" : item.lcId,
-        item.title,
-        item.difficulty,
-        item.link
-      ])
-    );
+    const heading = document.createElement("div");
+    heading.className = "leetcode-day-heading";
+    heading.textContent = `${date} ｜完成 ${list.length} 题`;
+    block.appendChild(heading);
+
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "leetcode-day-table-wrap";
+
+    const table = document.createElement("div");
+    table.className = "leetcode-day-table";
+
+    const header = document.createElement("div");
+    header.className = "leetcode-day-row header";
+    header.appendChild(createDayCell(`题号 (${list.length})`));
+    header.appendChild(createDayCell("题目"));
+    header.appendChild(createDayCell("难度"));
+    header.appendChild(createDayCell("文件"));
+    table.appendChild(header);
+
+    for (const item of list) {
+      const row = document.createElement("div");
+      row.className = "leetcode-day-row";
+
+      row.appendChild(createDayCell(item.lcId === 999999 ? "" : String(item.lcId)));
+      row.appendChild(createDayCell(item.title, "title"));
+
+      const difficulty = document.createElement("div");
+      difficulty.className = "leetcode-day-cell";
+      const difficultySpan = document.createElement("span");
+      difficultySpan.className = `leetcode-difficulty ${difficultyClass(item.difficulty)}`;
+      difficultySpan.textContent = item.difficulty || "未知";
+      difficulty.appendChild(difficultySpan);
+      row.appendChild(difficulty);
+
+      const fileCell = document.createElement("div");
+      fileCell.className = "leetcode-day-cell file";
+      const fileText = `${item.lcId === 999999 ? "" : item.lcId + ". "}${item.title}`;
+      fileCell.appendChild(createInternalLink(item.path, fileText));
+      row.appendChild(fileCell);
+
+      table.appendChild(row);
+    }
+
+    tableWrap.appendChild(table);
+    block.appendChild(tableWrap);
+    dailyRoot.appendChild(block);
   }
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
