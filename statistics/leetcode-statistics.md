@@ -8,6 +8,7 @@
 const LEETCODE_FOLDER = "notes/leetcode";
 const STUDY_PLAN_CONFIG_FILE = "leetcode-study-plan-config";
 const STUDY_PLAN_CURRENT_FILE = "leetcode-study-plan-current";
+const STUDY_PLAN_UNSOLVED_FILE = "leetcode-study-plan-unsolved";
 const STUDY_PLAN_CONFIG_TYPE = "leetcode-study-plan-config";
 const STUDY_PLAN_CURRENT_TYPE = "leetcode-study-plan-current";
 const HEATMAP_DAYS = 180; // 显示最近 180 天，可以改成 365
@@ -85,6 +86,11 @@ function isSameFolderOrChild(page, folder) {
 
 function sameText(a, b) {
   return String(a ?? "").trim() === String(b ?? "").trim();
+}
+
+function pagePathInCurrentFolder(fileName) {
+  const currentFolder = dv.current()?.file?.folder ?? "";
+  return currentFolder ? `${currentFolder}/${fileName}` : fileName;
 }
 
 const records = pages
@@ -445,6 +451,14 @@ style.textContent = `
   white-space: nowrap;
 }
 
+.leetcode-study-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .leetcode-study-plan-progress-row {
   display: flex;
   align-items: center;
@@ -606,13 +620,16 @@ style.textContent = `
 }
 
 .leetcode-detail-title {
-  font-size: 18px;
-  font-weight: 800;
-  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 760;
+  line-height: 1.35;
+  margin-bottom: 12px;
 }
 
 .leetcode-detail-empty {
   color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 720;
 }
 
 .leetcode-detail-list {
@@ -621,17 +638,28 @@ style.textContent = `
 }
 
 .leetcode-detail-list li {
-  margin: 6px 0;
+  margin: 8px 0;
+  font-size: 16px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.leetcode-detail-list .internal-link {
+  color: var(--text-accent);
+  font-size: 16px;
+  font-weight: 720;
+  text-decoration: none;
 }
 
 .leetcode-badge {
   display: inline-block;
   min-width: 38px;
   text-align: center;
-  padding: 1px 7px;
+  padding: 1px 8px;
   margin-left: 6px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 760;
   border: 1px solid var(--background-modifier-border);
 }
 
@@ -687,9 +715,9 @@ outline-offset: 2px;
   padding-left: 12px;
   border-left: 4px solid var(--text-accent);
   color: var(--text-accent);
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   line-height: 1.25;
-  font-weight: 900;
+  font-weight: 850;
 }
 
 .leetcode-day-table-wrap {
@@ -704,25 +732,20 @@ outline-offset: 2px;
 
 .leetcode-day-row {
   display: grid;
-  /*
-   * 题号列适当加宽：让“题目”列回到更自然的位置；
-   * 题目列改为固定上限：避免短题目时仍把“难度”列推得很远；
-   * 剩余空间全部交给文件列，因此不会再出现横向滚动条。
-   */
-  grid-template-columns: 200px minmax(260px, 360px) 86px minmax(0, 1fr);
-  column-gap: 16px;
+  grid-template-columns: 132px minmax(220px, 1fr) 72px 56px;
+  column-gap: 20px;
   align-items: center;
-  min-height: 34px;
-  padding: 5px 12px;
+  min-height: 42px;
+  padding: 6px 12px;
   box-sizing: border-box;
 }
 
 .leetcode-day-row.header {
-  min-height: 40px;
+  min-height: 44px;
   border-bottom: 2px solid var(--text-muted);
   color: var(--text-normal);
-  font-size: 1.02rem;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 760;
 }
 
 .leetcode-day-row:not(.header) {
@@ -736,6 +759,9 @@ outline-offset: 2px;
 .leetcode-day-cell {
   min-width: 0;
   text-align: left;
+  font-size: 16px;
+  font-weight: 720;
+  line-height: 1.35;
 }
 
 .leetcode-day-cell.title,
@@ -746,14 +772,19 @@ outline-offset: 2px;
 }
 
 .leetcode-day-cell.file .internal-link {
-  display: block;
+  display: inline-block;
+  min-width: 32px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  color: var(--text-accent);
+  font-size: 16px;
+  font-weight: 720;
 }
 
 .leetcode-difficulty {
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 760;
 }
 
 .leetcode-difficulty.easy {
@@ -774,8 +805,8 @@ outline-offset: 2px;
   }
 
   .leetcode-day-row {
-    grid-template-columns: 120px minmax(180px, 1fr) 76px minmax(0, 0.9fr);
-    column-gap: 12px;
+    grid-template-columns: 96px minmax(160px, 1fr) 64px 48px;
+    column-gap: 14px;
   }
 }
 
@@ -795,6 +826,10 @@ outline-offset: 2px;
     white-space: normal;
   }
 
+  .leetcode-study-plan-actions {
+    display: block;
+  }
+
   .leetcode-study-plan-percent {
     margin-top: 8px;
     text-align: left;
@@ -805,7 +840,7 @@ outline-offset: 2px;
   }
 
   .leetcode-day-row {
-    grid-template-columns: 72px minmax(120px, 1fr) 64px minmax(0, 0.8fr);
+    grid-template-columns: 64px minmax(96px, 1fr) 52px 36px;
     column-gap: 10px;
     padding-left: 8px;
     padding-right: 8px;
@@ -883,13 +918,24 @@ function createStudyPlanPanel(progress) {
   titleWrap.appendChild(subtitle);
   header.appendChild(titleWrap);
 
+  const actions = document.createElement("div");
+  actions.className = "leetcode-study-plan-actions";
+
+  const unsolvedLink = document.createElement("a");
+  unsolvedLink.className = "leetcode-study-plan-link internal-link";
+  unsolvedLink.href = pagePathInCurrentFolder(STUDY_PLAN_UNSOLVED_FILE);
+  unsolvedLink.textContent = "未做题目";
+  actions.appendChild(unsolvedLink);
+
   if (progress.sourceUrl) {
     const link = document.createElement("a");
     link.className = "leetcode-study-plan-link";
     link.href = progress.sourceUrl;
     link.textContent = "打开题单";
-    header.appendChild(link);
+    actions.appendChild(link);
   }
+
+  header.appendChild(actions);
 
   panel.appendChild(header);
 
@@ -1195,7 +1241,7 @@ if (sortedDates.length === 0) {
 
       const fileCell = document.createElement("div");
       fileCell.className = "leetcode-day-cell file";
-      const fileText = `${item.lcId === 999999 ? "" : item.lcId + ". "}${item.title}`;
+      const fileText = item.lcId === 999999 ? "打开" : String(item.lcId);
       fileCell.appendChild(createInternalLink(item.path, fileText));
       row.appendChild(fileCell);
 

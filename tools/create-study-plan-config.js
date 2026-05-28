@@ -26,6 +26,7 @@ query studyPlanV2Detail($slug: String!) {
         title
         translatedTitle
         questionFrontendId
+        difficulty
       }
     }
   }
@@ -201,6 +202,7 @@ function flattenProblems(plan) {
                 id,
                 slug,
                 title: String(question.translatedTitle || question.title || slug || id).trim(),
+                difficulty: String(question.difficulty || "").trim(),
                 group: String(group.name || "").trim(),
             });
         }
@@ -245,6 +247,7 @@ function renderConfig({ plan, problems, targetDate, sourceUrl, planId }) {
         lines.push(`  - id: ${yamlScalar(problem.id)}`);
         lines.push(`    slug: ${yamlScalar(problem.slug)}`);
         lines.push(`    title: ${yamlScalar(problem.title)}`);
+        lines.push(`    difficulty: ${yamlScalar(problem.difficulty)}`);
         lines.push(`    group: ${yamlScalar(problem.group)}`);
     }
 
