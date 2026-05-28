@@ -155,6 +155,64 @@ node tools/switch-study-plan.js --list --stats-dir statistics
 
 > **提示**：模板新增了 `type`、`status`、`done_date`、`lc_id` 等 frontmatter 字段，这些字段是 DataviewJS 统计功能的基础。
 
+## 🔄 自动 Git 同步
+
+仓库内置了 PowerShell 脚本，可每天自动提交并推送你的 LeetCode 题解笔记。
+
+### 工作原理
+
+- [`Scripts/auto-git-sync.ps1`](./Scripts/auto-git-sync.ps1) —— 检测仓库中变更的 `*.md` 文件，暂存后创建带日期的提交（`docs(leetcode): sync solutions YYYY-MM-DD`），并推送到远程。
+- [`Scripts/install-auto-git-sync-task.ps1`](./Scripts/install-auto-git-sync-task.ps1) —— 注册 Windows 计划任务，每天在可配置的时间（默认 `23:20`）自动运行同步脚本。
+
+### 安装
+
+> **重要提示**：安装脚本必须在**管理员权限的 PowerShell** 中运行。请右键点击 PowerShell，选择**以管理员身份运行**，然后再执行下面的命令。
+
+1. 打开一个**管理员权限的 PowerShell** 窗口。
+2. 运行安装命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1
+```
+
+这会创建一个名为 `LeetCode Auto Git Sync` 的每日计划任务，默认在 `23:20` 执行。
+
+### 自定义参数
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `-Time` | `23:20` | 每日执行时间，格式为 `HH:mm` |
+| `-TaskName` | `LeetCode Auto Git Sync` | Windows 计划任务名称 |
+| `-Remote` | `origin` | 推送目标 Git 远程仓库 |
+| `-Branch` | *（当前分支）* | 推送的 Git 分支 |
+| `-IncludePathspecs` | `@("*.md")` | 提交包含的文件匹配模式 |
+| `-RepoPath` | *（脚本父目录）* | Git 仓库路径 |
+
+示例——每天 22:00 执行，只提交 `notes/` 下的文件：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1 -Time "22:00" -IncludePathspecs @("notes/*.md")
+```
+
+### 手动同步
+
+也可以不依赖计划任务，直接手动运行同步脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Scripts\auto-git-sync.ps1
+```
+
+常用参数：
+
+| 参数 | 说明 |
+| --- | --- |
+| `-DryRun` | 仅显示检测到的变更，不执行提交和推送 |
+| `-NoPush` | 仅在本地提交，不推送到远程 |
+
+### 日志
+
+每次运行都会追加到仓库内的 `.git/auto-git-sync.log`，可以随时查看同步历史。
+
 ## 🛠️ 常见问题
 
 - **按钮不显示** —— 力扣是 SPA，脚本会每 1.2 秒重新注入；可以强制刷新一次。
@@ -167,7 +225,9 @@ node tools/switch-study-plan.js --list --stats-dir statistics
 ```
 leetcode-to-obsidian/
 ├── Scripts/
-│   └── leetcode-quickadd.js                 # Obsidian 端的 QuickAdd 脚本
+│   ├── leetcode-quickadd.js                 # Obsidian 端的 QuickAdd 脚本
+│   ├── auto-git-sync.ps1                   # 自动 Git 提交与推送脚本
+│   └── install-auto-git-sync-task.ps1      # Windows 计划任务安装脚本
 ├── Templates/
 │   ├── leetcode-problem-template.md         # 英文模板
 │   └── leetcode-problem-template_zh.md      # 中文模板（推荐）

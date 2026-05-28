@@ -155,6 +155,64 @@ The generator calls LeetCode GraphQL only once while creating a config. The Obsi
 
 > **Tip**: The templates now include `type`, `status`, `done_date`, `lc_id` and other frontmatter fields that power the DataviewJS statistics feature.
 
+## 🔄 Auto Git Sync
+
+This repo includes a PowerShell script that automatically commits and pushes your LeetCode solution notes on a daily schedule.
+
+### How it works
+
+- [`Scripts/auto-git-sync.ps1`](./Scripts/auto-git-sync.ps1) — Detects changed `*.md` files in the repo, stages them, creates a dated commit (`docs(leetcode): sync solutions YYYY-MM-DD`), and pushes to the remote.
+- [`Scripts/install-auto-git-sync-task.ps1`](./Scripts/install-auto-git-sync-task.ps1) — Registers a Windows Task Scheduler task that runs the sync script every day at a configurable time (default `23:20`).
+
+### Setup
+
+> **Important**: The installation script must be run in an **Administrator PowerShell** session. Right-click PowerShell and select **Run as Administrator** before executing the command below.
+
+1. Open an **Administrator PowerShell** window.
+2. Run the installer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1
+```
+
+This creates a daily scheduled task named `LeetCode Auto Git Sync` that runs at `23:20` by default.
+
+### Customization
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `-Time` | `23:20` | Daily run time in `HH:mm` format |
+| `-TaskName` | `LeetCode Auto Git Sync` | Windows scheduled task name |
+| `-Remote` | `origin` | Git remote to push to |
+| `-Branch` | *(current branch)* | Git branch to push |
+| `-IncludePathspecs` | `@("*.md")` | File patterns to include in the commit |
+| `-RepoPath` | *(script parent dir)* | Path to the git repository |
+
+Example — run at 22:00, only commit files under `notes/`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1 -Time "22:00" -IncludePathspecs @("notes/*.md")
+```
+
+### Manual sync
+
+You can also run the sync script directly without the scheduled task:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Scripts\auto-git-sync.ps1
+```
+
+Useful flags:
+
+| Flag | Description |
+| --- | --- |
+| `-DryRun` | Show detected changes without committing or pushing |
+| `-NoPush` | Commit locally but skip pushing to remote |
+
+### Logs
+
+Each run appends to `.git/auto-git-sync.log` inside the repository, so you can review sync history at any time.
+
 ## 🛠️ Troubleshooting
 
 - **Button not visible** — LeetCode is a SPA; the script re-injects every 1.2s. Try a hard refresh.
@@ -167,7 +225,9 @@ The generator calls LeetCode GraphQL only once while creating a config. The Obsi
 ```
 leetcode-to-obsidian/
 ├── Scripts/
-│   └── leetcode-quickadd.js                 # QuickAdd user script for Obsidian
+│   ├── leetcode-quickadd.js                 # QuickAdd user script for Obsidian
+│   ├── auto-git-sync.ps1                   # Auto git commit & push script
+│   └── install-auto-git-sync-task.ps1      # Windows scheduled task installer
 ├── Templates/
 │   ├── leetcode-problem-template.md         # English template
 │   └── leetcode-problem-template_zh.md      # Chinese template (recommended)
