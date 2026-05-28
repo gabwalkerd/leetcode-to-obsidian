@@ -6,6 +6,10 @@
 // ==============================
 
 const LEETCODE_FOLDER = "notes/leetcode";
+const STUDY_PLAN_CONFIG_FILE = "leetcode-study-plan-config";
+const STUDY_PLAN_CURRENT_FILE = "leetcode-study-plan-current";
+const STUDY_PLAN_CONFIG_TYPE = "leetcode-study-plan-config";
+const STUDY_PLAN_CURRENT_TYPE = "leetcode-study-plan-current";
 const HEATMAP_DAYS = 180; // 显示最近 180 天，可以改成 365
 
 const pages = dv.pages()
@@ -49,14 +53,50 @@ function difficultyClass(difficulty) {
   return "unknown";
 }
 
+function normalizeSlug(value) {
+  return String(value ?? "").trim();
+}
+
+function normalizeId(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+
+  const numeric = Number(text);
+  if (Number.isFinite(numeric)) return String(numeric);
+
+  return text;
+}
+
+function asArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value.array === "function") return value.array();
+  return [value];
+}
+
+function normalizePlanId(value) {
+  return String(value ?? "").trim();
+}
+
+function isSameFolderOrChild(page, folder) {
+  if (!folder) return true;
+  return page.file.folder === folder || page.file.folder.startsWith(`${folder}/`);
+}
+
+function sameText(a, b) {
+  return String(a ?? "").trim() === String(b ?? "").trim();
+}
+
 const records = pages
   .array()
   .map(p => ({
     page: p,
     date: formatDate(p.done_date),
     moment: toMoment(p.done_date),
+    idText: normalizeId(p.lc_id ?? p["leetcode-index"] ?? ""),
     lcId: Number(p.lc_id ?? p["leetcode-index"] ?? 999999),
     title: p.title ?? p.file.name,
+    titleSlug: normalizeSlug(p.title_slug ?? p.titleSlug ?? ""),
     difficulty: p.difficulty ?? "",
     link: p.file.link,
     path: p.file.path,
@@ -85,9 +125,189 @@ const monthStart = today.clone().startOf("month");
 
 const totalCount = records.length;
 
+const solvedSlugSet = new Set(
+  records.map(r => r.titleSlug).filter(Boolean)
+);
+
+const solvedIdSet = new Set(
+  records.map(r => r.idText).filter(Boolean)
+);
+
 const monthCount = records.filter(r =>
   r.moment.isSameOrAfter(monthStart, "day")
 ).length;
+
+function findStudyPlanCurrentPage() {
+  const currentFolder = dv.current()?.file?.folder ?? "";
+
+  const candidates = dv.pages()
+    .where(p =>
+      String(p.type ?? "").trim() === STUDY_PLAN_CURRENT_TYPE ||
+      p.file.name === STUDY_PLAN_CURRENT_FILE
+    )
+    .array();
+
+  return candidates.find(p =>
+    p.file.folder === currentFolder &&
+    p.file.name === STUDY_PLAN_CURRENT_FILE
+  ) ?? candidates.find(p =>
+    p.file.folder === currentFolder &&
+    String(p.type ?? "").trim() === STUDY_PLAN_CURRENT_TYPE
+  ) ?? candidates.find(p =>
+    p.file.name === STUDY_PLAN_CURRENT_FILE
+  ) ?? candidates[0] ?? null;
+}
+
+function findStudyPlanConfigPages() {
+  const currentFolder = dv.current()?.file?.folder ?? "";
+
+  const candidates = dv.pages()
+    .where(p =>
+      String(p.type ?? "").trim() === STUDY_PLAN_CONFIG_TYPE ||
+      p.file.name === STUDY_PLAN_CONFIG_FILE
+    )
+    .array();
+
+  const scoped = candidates.filter(p => isSameFolderOrChild(p, currentFolder));
+
+  return (scoped.length ? scoped : candidates)
+    .sort((a, b) => a.file.path.localeCompare(b.file.path));
+}
+
+function findStudyPlanSelection() {
+  const currentPage = findStudyPlanCurrentPage();
+  const activePlanId = normalizePlanId(
+    currentPage?.active_plan_id ??
+    currentPage?.activePlanId ??
+    currentPage?.plan_id
+  );
+  const configs = findStudyPlanConfigPages();
+
+  if (!configs.length) {
+    return {
+      configPage: null,
+      activePlanId,
+      configCount: 0,
+      message: `未找到题单配置。请把 ${STUDY_PLAN_CONFIG_FILE}.md 或其他题单配置放到统计页同一文件夹。`,
+    };
+  }
+
+  if (activePlanId) {
+    const selected = configs.find(p =>
+      sameText(p.plan_id, activePlanId) ||
+      sameText(p.file.name, activePlanId)
+    );
+
+    return {
+      configPage: selected ?? null,
+      activePlanId,
+      configCount: configs.length,
+      message: selected
+        ? ""
+        : `当前题单 ${activePlanId} 不存在。可用题单：${configs.map(p => p.plan_id ?? p.file.name).join("、")}`,
+    };
+  }
+
+  const activeByFlag = configs.find(p =>
+    p.active === true ||
+    String(p.status ?? "").trim().toLowerCase() === "active"
+  );
+  const selected = activeByFlag ?? configs.find(p => p.file.name === STUDY_PLAN_CONFIG_FILE) ?? configs[0];
+
+  return {
+    configPage: selected,
+    activePlanId: normalizePlanId(selected?.plan_id ?? selected?.file?.name),
+    configCount: configs.length,
+    message: configs.length > 1
+      ? `未设置 ${STUDY_PLAN_CURRENT_FILE}.md，已默认显示 ${selected.plan_id ?? selected.file.name}。`
+      : "",
+  };
+}
+
+function normalizeStudyPlanProblems(rawProblems) {
+  const seen = new Set();
+
+  return asArray(rawProblems)
+    .map(problem => {
+      const id = normalizeId(problem?.id ?? problem?.lc_id ?? problem?.["leetcode-index"]);
+      const slug = normalizeSlug(problem?.slug ?? problem?.title_slug ?? problem?.titleSlug);
+      const title = String(problem?.title ?? slug ?? id ?? "").trim();
+      const group = String(problem?.group ?? "").trim();
+      const key = slug ? `slug:${slug}` : id ? `id:${id}` : "";
+
+      return { id, slug, title, group, key };
+    })
+    .filter(problem => {
+      if (!problem.key || seen.has(problem.key)) return false;
+      seen.add(problem.key);
+      return true;
+    });
+}
+
+function isStudyPlanProblemSolved(problem) {
+  if (problem.slug && solvedSlugSet.has(problem.slug)) return true;
+  if (problem.id && solvedIdSet.has(problem.id)) return true;
+  return false;
+}
+
+function buildStudyPlanProgress(selection) {
+  if (!selection.configPage) {
+    return {
+      state: "missing",
+      planName: "当前题单",
+      planId: selection.activePlanId || "",
+      message: selection.message,
+    };
+  }
+
+  const configPage = selection.configPage;
+  const problems = normalizeStudyPlanProblems(configPage.problems);
+  const completedProblems = problems.filter(isStudyPlanProblemSolved);
+  const targetDate = formatDate(configPage.target_date);
+  const targetMoment = targetDate !== "未知日期"
+    ? window.moment(targetDate, "YYYY-MM-DD").startOf("day")
+    : null;
+  const hasValidTarget = Boolean(targetMoment?.isValid?.());
+  const total = problems.length;
+  const completed = completedProblems.length;
+  const remaining = Math.max(total - completed, 0);
+  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const daysAvailable = hasValidTarget && targetMoment.isSameOrAfter(today, "day")
+    ? targetMoment.diff(today, "days") + 1
+    : 0;
+  const dailyRequired = remaining === 0
+    ? 0
+    : daysAvailable > 0
+      ? Math.ceil(remaining / daysAvailable)
+      : null;
+
+  let paceText = "未设置截止日期";
+  if (remaining === 0 && total > 0) {
+    paceText = "已完成";
+  } else if (hasValidTarget && daysAvailable <= 0) {
+    paceText = "已逾期";
+  } else if (dailyRequired !== null) {
+    paceText = `每天 ${dailyRequired} 题`;
+  }
+
+  return {
+    state: total > 0 ? "ready" : "empty",
+    planName: String(configPage.plan_name ?? configPage.file.name ?? "当前题单"),
+    planId: String(configPage.plan_id ?? ""),
+    sourceUrl: String(configPage.source_url ?? ""),
+    targetDate: hasValidTarget ? targetDate : "未设置",
+    total,
+    completed,
+    remaining,
+    percent,
+    daysAvailable,
+    dailyRequired,
+    paceText,
+    selectionMessage: selection.message,
+    configCount: selection.configCount,
+    message: total > 0 ? "" : "题单配置中没有可统计的 problems。",
+  };
+}
 
 function calcCurrentStreak() {
   let streak = 0;
@@ -135,6 +355,7 @@ function calcLongestStreak() {
 
 const currentStreak = calcCurrentStreak();
 const longestStreak = calcLongestStreak();
+const studyPlanProgress = buildStudyPlanProgress(findStudyPlanSelection());
 
 function countLevel(count) {
   if (count <= 0) return 0;
@@ -188,6 +409,105 @@ style.textContent = `
   font-size: 14px;
   color: var(--text-muted);
   margin-left: 4px;
+}
+
+.leetcode-study-plan {
+  margin-bottom: 18px;
+  padding: 14px 16px 16px 16px;
+  border-radius: 14px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.leetcode-study-plan-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.leetcode-study-plan-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.leetcode-study-plan-subtitle {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.leetcode-study-plan-link {
+  color: var(--text-accent);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.leetcode-study-plan-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.leetcode-study-plan-bar {
+  flex: 1;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--background-modifier-border);
+}
+
+.leetcode-study-plan-bar-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: 999px;
+  background: var(--text-accent);
+}
+
+.leetcode-study-plan-percent {
+  min-width: 48px;
+  text-align: right;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.leetcode-study-plan-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.leetcode-study-plan-metric {
+  min-width: 0;
+}
+
+.leetcode-study-plan-metric-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.leetcode-study-plan-metric-value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.leetcode-study-plan-empty {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.leetcode-study-plan-note {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .leetcode-heatmap-wrap {
@@ -449,6 +769,10 @@ outline-offset: 2px;
 }
 
 @media (max-width: 900px) {
+  .leetcode-study-plan-metrics {
+    grid-template-columns: repeat(3, minmax(110px, 1fr));
+  }
+
   .leetcode-day-row {
     grid-template-columns: 120px minmax(180px, 1fr) 76px minmax(0, 0.9fr);
     column-gap: 12px;
@@ -458,6 +782,26 @@ outline-offset: 2px;
 @media (max-width: 700px) {
   .leetcode-summary {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .leetcode-study-plan-header,
+  .leetcode-study-plan-progress-row {
+    display: block;
+  }
+
+  .leetcode-study-plan-link {
+    display: inline-block;
+    margin-top: 8px;
+    white-space: normal;
+  }
+
+  .leetcode-study-plan-percent {
+    margin-top: 8px;
+    text-align: left;
+  }
+
+  .leetcode-study-plan-metrics {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
   }
 
   .leetcode-day-row {
@@ -499,12 +843,117 @@ function createCard(title, value, unit) {
   return card;
 }
 
+function createStudyPlanMetric(label, value) {
+  const metric = document.createElement("div");
+  metric.className = "leetcode-study-plan-metric";
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "leetcode-study-plan-metric-label";
+  labelEl.textContent = label;
+
+  const valueEl = document.createElement("div");
+  valueEl.className = "leetcode-study-plan-metric-value";
+  valueEl.textContent = value;
+  valueEl.title = value;
+
+  metric.appendChild(labelEl);
+  metric.appendChild(valueEl);
+
+  return metric;
+}
+
+function createStudyPlanPanel(progress) {
+  const panel = document.createElement("div");
+  panel.className = "leetcode-study-plan";
+
+  const header = document.createElement("div");
+  header.className = "leetcode-study-plan-header";
+
+  const titleWrap = document.createElement("div");
+  const title = document.createElement("div");
+  title.className = "leetcode-study-plan-title";
+  title.textContent = progress.planName;
+  titleWrap.appendChild(title);
+
+  const subtitle = document.createElement("div");
+  subtitle.className = "leetcode-study-plan-subtitle";
+  subtitle.textContent = progress.state === "ready"
+    ? `当前题单进度：${progress.completed}/${progress.total} 题`
+    : "当前题单";
+  titleWrap.appendChild(subtitle);
+  header.appendChild(titleWrap);
+
+  if (progress.sourceUrl) {
+    const link = document.createElement("a");
+    link.className = "leetcode-study-plan-link";
+    link.href = progress.sourceUrl;
+    link.textContent = "打开题单";
+    header.appendChild(link);
+  }
+
+  panel.appendChild(header);
+
+  if (progress.state !== "ready") {
+    const empty = document.createElement("div");
+    empty.className = "leetcode-study-plan-empty";
+    empty.textContent = progress.message;
+    panel.appendChild(empty);
+    return panel;
+  }
+
+  const progressRow = document.createElement("div");
+  progressRow.className = "leetcode-study-plan-progress-row";
+
+  const bar = document.createElement("div");
+  bar.className = "leetcode-study-plan-bar";
+
+  const fill = document.createElement("div");
+  fill.className = "leetcode-study-plan-bar-fill";
+  fill.style.width = `${Math.max(0, Math.min(progress.percent, 100))}%`;
+  bar.appendChild(fill);
+  progressRow.appendChild(bar);
+
+  const percent = document.createElement("div");
+  percent.className = "leetcode-study-plan-percent";
+  percent.textContent = `${progress.percent}%`;
+  progressRow.appendChild(percent);
+
+  panel.appendChild(progressRow);
+
+  const daysText = progress.remaining === 0
+    ? "0 天"
+    : progress.daysAvailable > 0
+      ? `${progress.daysAvailable} 天`
+      : progress.targetDate === "未设置"
+        ? "未设置"
+        : "已逾期";
+
+  const metrics = document.createElement("div");
+  metrics.className = "leetcode-study-plan-metrics";
+  metrics.appendChild(createStudyPlanMetric("已完成", `${progress.completed}/${progress.total} 题`));
+  metrics.appendChild(createStudyPlanMetric("剩余题目", `${progress.remaining} 题`));
+  metrics.appendChild(createStudyPlanMetric("截止日期", progress.targetDate));
+  metrics.appendChild(createStudyPlanMetric("剩余天数", daysText));
+  metrics.appendChild(createStudyPlanMetric("建议节奏", progress.paceText));
+  panel.appendChild(metrics);
+
+  if (progress.selectionMessage) {
+    const note = document.createElement("div");
+    note.className = "leetcode-study-plan-note";
+    note.textContent = progress.selectionMessage;
+    panel.appendChild(note);
+  }
+
+  return panel;
+}
+
 summary.appendChild(createCard("总完成", totalCount, "题"));
 summary.appendChild(createCard("本月解决", monthCount, "题"));
 summary.appendChild(createCard("当前连续", currentStreak, "天"));
 summary.appendChild(createCard("最长连续", longestStreak, "天"));
 
 dashboard.appendChild(summary);
+dashboard.appendChild(createStudyPlanPanel(studyPlanProgress));
 
 const heatmapWrap = document.createElement("div");
 heatmapWrap.className = "leetcode-heatmap-wrap";
