@@ -120,16 +120,16 @@ QuickAdd 脚本会向模板暴露以下变量：
 
 ## 📊 刷题统计
 
-仓库内置了一份 DataviewJS 统计页面 [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md)，按完成日期自动分组展示你已刷完的题目，并可以读取题单配置显示当前题单进度。
+仓库内置了一份 DataviewJS 统计页面 [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md)，按完成日期自动分组展示你已刷完的题目，并可以读取题单配置显示当前题单进度。统计页的“未做题目”入口会打开 [`statistics/leetcode-study-plan-unsolved.md`](./statistics/leetcode-study-plan-unsolved.md)，按题单官方分类列出还没完成的题目。
 
 使用方法：
 
-1. 把 `statistics/leetcode-statistics.md`、`statistics/leetcode-study-plan-current.md` 和题单配置文件复制到你的 Obsidian Vault 同一个文件夹；题单配置也可以放在统计页同目录的子文件夹中。
+1. 把 `statistics/leetcode-statistics.md`、`statistics/leetcode-study-plan-unsolved.md`、`statistics/leetcode-study-plan-current.md` 和题单配置文件复制到你的 Obsidian Vault 同一个文件夹；题单配置也可以放在统计页同目录的子文件夹中。
 2. 安装 [Dataview](https://github.com/blacksmithgu/obsidian-dataview) 插件（需要开启 JavaScript 查询）。
 3. 确保笔记的 `notes/leetcode` 文件夹下有 `type: leetcode`、`status: done`、`done_date` 字段（新模板已自动生成这些字段）。
-4. 打开统计页面即可查看当前题单进度、截止日期、建议节奏，以及按日期分组的刷题记录。
+4. 打开统计页面即可查看当前题单进度、截止日期、建议节奏，以及按日期分组的刷题记录；点击“未做题目”可以查看当前题单剩余题目。
 
-题单配置默认内置 [LeetCode 热题 100](https://leetcode.cn/studyplan/top-100-liked/) 的本地清单。`target_date: 2026-12-31` 只是示例日期，复制到 Vault 后可以直接改成你的目标完成日期。
+`leetcode-study-plan-current.md` 默认选择 `active_plan_id: hot100`。首次使用前，需要生成一个同名题单配置，或把 `active_plan_id` 改成你已有的题单 ID。
 
 也可以用 Node.js 18+ 生成多个本地题单配置：
 
@@ -151,6 +151,8 @@ node tools/switch-study-plan.js --list --stats-dir statistics
 
 生成脚本只在生成配置时请求一次力扣 GraphQL；Obsidian 统计页仍然只读取本地题单配置和 `leetcode-study-plan-current.md`。
 
+> 如果旧题单配置没有 `difficulty` 字段，未做题目页会显示“未知”。重新运行生成命令即可补全难度。
+
 > **提示**：模板新增了 `type`、`status`、`done_date`、`lc_id` 等 frontmatter 字段，这些字段是 DataviewJS 统计功能的基础。
 
 ## 🛠️ 常见问题
@@ -171,8 +173,8 @@ leetcode-to-obsidian/
 │   └── leetcode-problem-template_zh.md      # 中文模板（推荐）
 ├── statistics/
 │   ├── leetcode-statistics.md               # DataviewJS 刷题统计页面
-│   ├── leetcode-study-plan-current.md       # 当前题单选择器
-│   └── leetcode-study-plan-config.md        # 当前题单配置（默认 Hot100）
+│   ├── leetcode-study-plan-unsolved.md      # 当前题单未做题目页面
+│   └── leetcode-study-plan-current.md       # 当前题单选择器
 ├── tools/
 │   ├── create-study-plan-config.js          # 从力扣题单 URL 生成本地配置
 │   └── switch-study-plan.js                 # 切换当前本地题单
