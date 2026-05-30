@@ -113,6 +113,7 @@ QuickAdd 脚本会向模板暴露以下变量：
 | `{{VALUE:titleSlug}}` | 题目 slug |
 | `{{VALUE:type}}` | 笔记类型（固定 `leetcode`，供 Dataview 查询） |
 | `{{VALUE:status}}` | 完成状态（固定 `done`，供 Dataview 查询） |
+| `favorite` | 是否收藏题解（模板默认 `false`，可在 Obsidian 属性中勾选为 `true`） |
 | `{{VALUE:doneDate}}` | 刷题完成日期（`YYYY-MM-DD`，默认当天） |
 | `{{VALUE:createdAt}}` | 笔记创建时间（`YYYY-MM-DD HH:mm:ss`，默认当前时刻） |
 | `{{VALUE:lcId}}` | 力扣内部题号（与 `id` 相同，供 DataviewJS 排序使用） |
@@ -120,14 +121,14 @@ QuickAdd 脚本会向模板暴露以下变量：
 
 ## 📊 刷题统计
 
-仓库内置了一份 DataviewJS 统计页面 [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md)，按完成日期自动分组展示你已刷完的题目，并可以读取题单配置显示当前题单进度。统计页的“未做题目”入口会打开 [`statistics/leetcode-study-plan-unsolved.md`](./statistics/leetcode-study-plan-unsolved.md)，按题单官方分类列出还没完成的题目。
+仓库内置了一份 DataviewJS 统计页面 [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md)，按完成日期自动分组展示你已刷完的题目，并可以读取题单配置显示当前题单进度。统计页的“未做题目”入口会打开 [`statistics/leetcode-study-plan-unsolved.md`](./statistics/leetcode-study-plan-unsolved.md)，按题单官方分类列出还没完成的题目；“收藏题解”入口会打开 [`statistics/leetcode-favorites.md`](./statistics/leetcode-favorites.md)，展示 frontmatter 中 `favorite: true` 的题解。
 
 使用方法：
 
-1. 把 `statistics/leetcode-statistics.md`、`statistics/leetcode-study-plan-unsolved.md`、`statistics/leetcode-study-plan-current.md` 和题单配置文件复制到你的 Obsidian Vault 同一个文件夹；题单配置也可以放在统计页同目录的子文件夹中。
+1. 把 `statistics/leetcode-statistics.md`、`statistics/leetcode-study-plan-unsolved.md`、`statistics/leetcode-favorites.md`、`statistics/leetcode-study-plan-current.md` 和题单配置文件复制到你的 Obsidian Vault 同一个文件夹；题单配置也可以放在统计页同目录的子文件夹中。
 2. 安装 [Dataview](https://github.com/blacksmithgu/obsidian-dataview) 插件（需要开启 JavaScript 查询）。
 3. 确保笔记的 `notes/leetcode` 文件夹下有 `type: leetcode`、`status: done`、`done_date` 字段（新模板已自动生成这些字段）。
-4. 打开统计页面即可查看当前题单进度、截止日期、建议节奏，以及按日期分组的刷题记录；点击“未做题目”可以查看当前题单剩余题目。
+4. 打开统计页面即可查看当前题单进度、截止日期、建议节奏，以及按日期分组的刷题记录；点击“未做题目”可以查看当前题单剩余题目，点击“收藏题解”可以查看收藏列表。
 
 `leetcode-study-plan-current.md` 默认选择 `active_plan_id: hot100`。首次使用前，需要生成一个同名题单配置，或把 `active_plan_id` 改成你已有的题单 ID。
 
@@ -234,6 +235,7 @@ leetcode-to-obsidian/
 ├── statistics/
 │   ├── leetcode-statistics.md               # DataviewJS 刷题统计页面
 │   ├── leetcode-study-plan-unsolved.md      # 当前题单未做题目页面
+│   ├── leetcode-favorites.md                # 收藏题解页面
 │   └── leetcode-study-plan-current.md       # 当前题单选择器
 ├── tools/
 │   ├── create-study-plan-config.js          # 从力扣题单 URL 生成本地配置

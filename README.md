@@ -113,6 +113,7 @@ The QuickAdd script exposes the following variables for templates:
 | `{{VALUE:titleSlug}}` | Problem slug |
 | `{{VALUE:type}}` | Note type (always `leetcode`, used by Dataview queries) |
 | `{{VALUE:status}}` | Completion status (always `done`, used by Dataview queries) |
+| `favorite` | Whether the solution is favorited (templates default to `false`; toggle to `true` in Obsidian properties) |
 | `{{VALUE:doneDate}}` | Completion date (`YYYY-MM-DD`, defaults to today) |
 | `{{VALUE:createdAt}}` | Note creation timestamp (`YYYY-MM-DD HH:mm:ss`, defaults to now) |
 | `{{VALUE:lcId}}` | LeetCode internal problem number (same as `id`, used by DataviewJS sorting) |
@@ -120,14 +121,14 @@ The QuickAdd script exposes the following variables for templates:
 
 ## 📊 Practice statistics
 
-This repo ships a DataviewJS statistics page [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md) that automatically groups your solved problems by completion date and can read a study-plan config to show your current plan progress. The "未做题目" entry opens [`statistics/leetcode-study-plan-unsolved.md`](./statistics/leetcode-study-plan-unsolved.md), which groups remaining problems by the official study-plan category.
+This repo ships a DataviewJS statistics page [`statistics/leetcode-statistics.md`](./statistics/leetcode-statistics.md) that automatically groups your solved problems by completion date and can read a study-plan config to show your current plan progress. The "未做题目" entry opens [`statistics/leetcode-study-plan-unsolved.md`](./statistics/leetcode-study-plan-unsolved.md), which groups remaining problems by the official study-plan category. The "收藏题解" entry opens [`statistics/leetcode-favorites.md`](./statistics/leetcode-favorites.md), which lists notes whose frontmatter has `favorite: true`.
 
 To use it:
 
-1. Copy `statistics/leetcode-statistics.md`, `statistics/leetcode-study-plan-unsolved.md`, `statistics/leetcode-study-plan-current.md`, and your study-plan config files into the same folder in your Obsidian vault. Study-plan configs may also live in subfolders next to the statistics page.
+1. Copy `statistics/leetcode-statistics.md`, `statistics/leetcode-study-plan-unsolved.md`, `statistics/leetcode-favorites.md`, `statistics/leetcode-study-plan-current.md`, and your study-plan config files into the same folder in your Obsidian vault. Study-plan configs may also live in subfolders next to the statistics page.
 2. Install the [Dataview](https://github.com/blacksmithgu/obsidian-dataview) plugin (JavaScript queries must be enabled).
 3. Ensure notes in your `notes/leetcode` folder have `type: leetcode`, `status: done`, and `done_date` fields (the new templates generate these automatically).
-4. Open the statistics page to see current study-plan progress, deadline, suggested pace, and solved problems grouped by date. Click "未做题目" to inspect remaining problems for the active plan.
+4. Open the statistics page to see current study-plan progress, deadline, suggested pace, and solved problems grouped by date. Click "未做题目" to inspect remaining problems for the active plan, or "收藏题解" to inspect favorited solutions.
 
 `leetcode-study-plan-current.md` defaults to `active_plan_id: hot100`. Before first use, generate a matching config or change `active_plan_id` to an existing local plan ID.
 
@@ -234,6 +235,7 @@ leetcode-to-obsidian/
 ├── statistics/
 │   ├── leetcode-statistics.md               # DataviewJS practice statistics page
 │   ├── leetcode-study-plan-unsolved.md      # Remaining problems for the active study plan
+│   ├── leetcode-favorites.md                # Favorited solution notes
 │   └── leetcode-study-plan-current.md       # Active study-plan selector
 ├── tools/
 │   ├── create-study-plan-config.js          # Generate local config from a LeetCode study-plan URL
