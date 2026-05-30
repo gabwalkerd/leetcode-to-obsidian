@@ -9,6 +9,7 @@ const LEETCODE_FOLDER = "notes/leetcode";
 const STUDY_PLAN_CONFIG_FILE = "leetcode-study-plan-config";
 const STUDY_PLAN_CURRENT_FILE = "leetcode-study-plan-current";
 const STUDY_PLAN_UNSOLVED_FILE = "leetcode-study-plan-unsolved";
+const LEETCODE_FAVORITES_FILE = "leetcode-favorites";
 const STUDY_PLAN_CONFIG_TYPE = "leetcode-study-plan-config";
 const STUDY_PLAN_CURRENT_TYPE = "leetcode-study-plan-current";
 const HEATMAP_DAYS = 180; // 显示最近 180 天，可以改成 365
@@ -920,6 +921,12 @@ function createStudyPlanPanel(progress) {
 
   const actions = document.createElement("div");
   actions.className = "leetcode-study-plan-actions";
+
+  const favoritesLink = document.createElement("a");
+  favoritesLink.className = "leetcode-study-plan-link internal-link";
+  favoritesLink.href = pagePathInCurrentFolder(LEETCODE_FAVORITES_FILE);
+  favoritesLink.textContent = "收藏题解";
+  actions.appendChild(favoritesLink);
 
   const unsolvedLink = document.createElement("a");
   unsolvedLink.className = "leetcode-study-plan-link internal-link";

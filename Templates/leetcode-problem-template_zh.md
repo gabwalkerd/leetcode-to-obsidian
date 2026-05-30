@@ -2,6 +2,7 @@
 type: {{VALUE:type}}
 status: {{VALUE:status}}
 completed: true
+favorite: false
 done_date: {{VALUE:doneDate}}
 created: {{VALUE:createdAt}}
 modified:
@@ -47,4 +48,3 @@ tags:
 - 空间复杂度：
 
 ## 复盘总结
-
