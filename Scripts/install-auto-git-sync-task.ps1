@@ -5,7 +5,8 @@ param(
     [string]$Time = "23:20",
     [string]$Remote = "origin",
     [string]$Branch = "",
-    [string[]]$IncludePathspecs = @("*.md")
+    [string[]]$IncludePathspecs = @("*.md"),
+    [switch]$ShowWindow
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,9 +35,10 @@ if (-not [string]::IsNullOrWhiteSpace($Branch)) {
 
 $arguments = @(
     "-NoProfile",
+    "-NonInteractive",
+    $(if (-not $ShowWindow) { "-WindowStyle Hidden" }),
     "-ExecutionPolicy Bypass",
     "-File `"$syncScript`"",
-    "-RepoPath `"$RepoPath`"",
     "-Remote `"$Remote`"",
     $branchArgs,
     $pathspecArgs

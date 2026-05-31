@@ -176,7 +176,9 @@ node tools/switch-study-plan.js --list --stats-dir statistics
 powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1
 ```
 
-这会创建一个名为 `LeetCode Auto Git Sync` 的每日计划任务，默认在 `23:20` 执行。
+这会创建一个名为 `LeetCode Auto Git Sync` 的每日计划任务，默认在 `23:20` 后台隐藏执行。
+
+如果之前已经安装过旧版本计划任务，重新运行上面的安装命令即可覆盖更新，之后执行时不会再弹出 PowerShell 窗口。
 
 ### 自定义参数
 
@@ -188,6 +190,7 @@ powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1
 | `-Branch` | *（当前分支）* | 推送的 Git 分支 |
 | `-IncludePathspecs` | `@("*.md")` | 提交包含的文件匹配模式 |
 | `-RepoPath` | *（脚本父目录）* | Git 仓库路径 |
+| `-ShowWindow` | *关闭* | 调试时显示 PowerShell 窗口；默认隐藏窗口 |
 
 示例——每天 22:00 执行，只提交 `notes/` 下的文件：
 

@@ -176,7 +176,9 @@ This repo includes a PowerShell script that automatically commits and pushes you
 powershell -ExecutionPolicy Bypass -File Scripts\install-auto-git-sync-task.ps1
 ```
 
-This creates a daily scheduled task named `LeetCode Auto Git Sync` that runs at `23:20` by default.
+This creates a daily scheduled task named `LeetCode Auto Git Sync` that runs hidden in the background at `23:20` by default.
+
+If you already installed an older version of the task, rerun the installer above to overwrite it. Future scheduled runs will no longer pop up a PowerShell window.
 
 ### Customization
 
@@ -188,6 +190,7 @@ This creates a daily scheduled task named `LeetCode Auto Git Sync` that runs at 
 | `-Branch` | *(current branch)* | Git branch to push |
 | `-IncludePathspecs` | `@("*.md")` | File patterns to include in the commit |
 | `-RepoPath` | *(script parent dir)* | Path to the git repository |
+| `-ShowWindow` | *off* | Show the PowerShell window for debugging; hidden by default |
 
 Example — run at 22:00, only commit files under `notes/`:
 
