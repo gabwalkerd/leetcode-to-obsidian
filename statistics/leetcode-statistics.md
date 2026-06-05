@@ -41,6 +41,32 @@ function toMoment(dateValue) {
   return window.moment(str, "YYYY-MM-DD");
 }
 
+function formatDateTime(dateValue) {
+  if (!dateValue) return "";
+
+  if (dateValue.toFormat) {
+    return dateValue.toFormat("yyyy-MM-dd HH:mm:ss");
+  }
+
+  return String(dateValue)
+    .replace("T", " ")
+    .replaceAll("/", "-")
+    .slice(0, 19);
+}
+
+function toDateTimeMoment(dateValue) {
+  const str = formatDateTime(dateValue);
+  if (!str) return null;
+
+  const momentValue = window.moment(str, [
+    "YYYY-MM-DD HH:mm:ss",
+    "YYYY-MM-DD HH:mm",
+    "YYYY-MM-DD",
+  ], true);
+
+  return momentValue.isValid() ? momentValue : null;
+}
+
 function formatTitle(page) {
   const id = page.lc_id ?? page["leetcode-index"] ?? "";
   const title = page.title ?? page.file.name;
@@ -94,12 +120,29 @@ function pagePathInCurrentFolder(fileName) {
   return currentFolder ? `${currentFolder}/${fileName}` : fileName;
 }
 
+function compareByCreated(a, b) {
+  const aCreated = a.createdMoment;
+  const bCreated = b.createdMoment;
+
+  if (aCreated && bCreated && !aCreated.isSame(bCreated)) {
+    return bCreated.valueOf() - aCreated.valueOf();
+  }
+
+  if (aCreated && !bCreated) return -1;
+  if (!aCreated && bCreated) return 1;
+
+  if (a.lcId !== b.lcId) return a.lcId - b.lcId;
+  return a.path.localeCompare(b.path);
+}
+
 const records = pages
   .array()
   .map(p => ({
     page: p,
     date: formatDate(p.done_date),
     moment: toMoment(p.done_date),
+    created: formatDateTime(p.created),
+    createdMoment: toDateTimeMoment(p.created),
     idText: normalizeId(p.lc_id ?? p["leetcode-index"] ?? ""),
     lcId: Number(p.lc_id ?? p["leetcode-index"] ?? 999999),
     title: p.title ?? p.file.name,
@@ -111,7 +154,7 @@ const records = pages
   .filter(r => r.date !== "未知日期" && r.moment.isValid())
   .sort((a, b) => {
     if (a.date !== b.date) return b.date.localeCompare(a.date);
-    return a.lcId - b.lcId;
+    return compareByCreated(a, b);
   });
 
 const byDate = new Map();
@@ -124,7 +167,7 @@ for (const record of records) {
 }
 
 for (const [date, list] of byDate.entries()) {
-  list.sort((a, b) => a.lcId - b.lcId);
+  list.sort(compareByCreated);
 }
 
 const today = window.moment().startOf("day");
@@ -282,10 +325,14 @@ function buildStudyPlanProgress(selection) {
   const daysAvailable = hasValidTarget && targetMoment.isSameOrAfter(today, "day")
     ? targetMoment.diff(today, "days") + 1
     : 0;
+  const hasSolvedToday = byDate.has(today.format("YYYY-MM-DD"));
+  const paceDaysAvailable = hasSolvedToday
+    ? Math.max(daysAvailable - 1, 0)
+    : daysAvailable;
   const dailyRequired = remaining === 0
     ? 0
-    : daysAvailable > 0
-      ? Math.ceil(remaining / daysAvailable)
+    : paceDaysAvailable > 0
+      ? Math.ceil(remaining / paceDaysAvailable)
       : null;
 
   let paceText = "未设置截止日期";
@@ -293,6 +340,8 @@ function buildStudyPlanProgress(selection) {
     paceText = "已完成";
   } else if (hasValidTarget && daysAvailable <= 0) {
     paceText = "已逾期";
+  } else if (hasValidTarget && paceDaysAvailable <= 0) {
+    paceText = "剩余天数不足";
   } else if (dailyRequired !== null) {
     paceText = `每天 ${dailyRequired} 题`;
   }
@@ -308,6 +357,7 @@ function buildStudyPlanProgress(selection) {
     remaining,
     percent,
     daysAvailable,
+    paceDaysAvailable,
     dailyRequired,
     paceText,
     selectionMessage: selection.message,
@@ -1207,7 +1257,7 @@ if (sortedDates.length === 0) {
   dailyRoot.appendChild(empty);
 } else {
   for (const date of sortedDates) {
-    const list = groups.get(date).sort((a, b) => a.lcId - b.lcId);
+    const list = groups.get(date).sort(compareByCreated);
 
     const block = document.createElement("section");
     block.className = "leetcode-day-block";
