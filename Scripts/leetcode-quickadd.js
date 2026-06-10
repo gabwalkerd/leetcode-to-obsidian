@@ -55,6 +55,7 @@ const log = (msg) => console.log("[LeetCode QuickAdd]", msg);
 
 const API_URL = "https://leetcode.cn/graphql/";
 const TAG_PREFIX_SETTING = "LeetCode Tag Prefix";
+const OUTPUT_FOLDER_SETTING = "LeetCode Output Folder";
 
 // ==============================
 // QuickAdd 模块配置
@@ -71,6 +72,12 @@ module.exports = {
                 defaultValue: "leetcode/",
                 placeholder: "Enter tag prefix, e.g. leetcode/",
                 description: "Prefix to be added to LeetCode tags.",
+            },
+            [OUTPUT_FOLDER_SETTING]: {
+                type: "text",
+                defaultValue: "",
+                placeholder: "Enter output folder, e.g. solutions/hot100again",
+                description: "Vault folder where generated LeetCode notes should be created. Leave empty to use the QuickAdd template destination.",
             },
         },
     },
@@ -106,6 +113,7 @@ async function start(params, settings) {
     }
 
     setQuickAddVariables(problemData, context);
+    scheduleOpenGeneratedNote(problemData, context);
 
     notice(`已准备生成题目笔记：${problemData.id}. ${problemData.title}`);
 }
@@ -426,6 +434,7 @@ query questionData($titleSlug: String!) {
 function setQuickAddVariables(problemData, context) {
     const doneDate = context.doneDate || getTodayLocalDate();
     const createdAt = context.createdAt || getNowLocalDateTime();
+    const baseFileName = `${problemData.id}. ${replaceIllegalFileNameCharactersInString(problemData.title)}`;
 
     QuickAdd.variables = {
         ...problemData,
@@ -437,7 +446,7 @@ function setQuickAddVariables(problemData, context) {
         createdAt,
         lcId: problemData.id || "",
 
-        fileName: `${problemData.id}. ${replaceIllegalFileNameCharactersInString(problemData.title)}`,
+        fileName: joinObsidianPath(Settings[OUTPUT_FOLDER_SETTING], baseFileName),
 
         difficultyLink: `[[${problemData.difficulty}]]`,
 
@@ -453,6 +462,261 @@ function setQuickAddVariables(problemData, context) {
 
         titleSlug: context.titleSlug || problemData.titleSlug || "",
     };
+}
+
+function joinObsidianPath(folder, fileName) {
+    const normalizedFolder = normalizeObsidianFolder(folder);
+    return normalizedFolder ? `${normalizedFolder}/${fileName}` : fileName;
+}
+
+function normalizeObsidianFolder(folder) {
+    return String(folder || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .trim();
+}
+
+// ==============================
+// 打开生成后的题解
+// ==============================
+
+function scheduleOpenGeneratedNote(problemData, context) {
+    const fileName = QuickAdd?.variables?.fileName;
+    if (!fileName) return;
+
+    const requestedPath = ensureMarkdownExtension(normalizeObsidianPath(fileName));
+    const baseName = getObsidianBaseName(requestedPath);
+    const titleSlug = String(context?.titleSlug || problemData?.titleSlug || "").trim();
+    const startedAt = Date.now();
+    const existingPaths = new Set(
+        findGeneratedNoteCandidates({ requestedPath, baseName, titleSlug })
+            .map(file => file.path)
+    );
+    const openMarkdownPaths = getOpenMarkdownFilePaths();
+
+    waitAndOpenGeneratedNote({
+        requestedPath,
+        baseName,
+        titleSlug,
+        startedAt,
+        existingPaths,
+        openMarkdownPaths,
+        attempt: 0,
+        maxAttempts: 30,
+        delayMs: 500,
+    });
+}
+
+function waitAndOpenGeneratedNote(options) {
+    window.setTimeout(async () => {
+        try {
+            const file = findNewOrUpdatedGeneratedNote(options);
+
+            if (file) {
+                await restoreOpenMarkdownTabs(options.openMarkdownPaths, file.path);
+                await openObsidianFile(file);
+                notice(`已打开题解：${file.basename}`);
+                return;
+            }
+
+            if (options.attempt + 1 >= options.maxAttempts) {
+                console.warn("[LeetCode QuickAdd] 生成后未找到可打开的题解文件：", options.requestedPath);
+                notice("题解已准备生成，但未能自动打开生成后的文件。");
+                return;
+            }
+
+            waitAndOpenGeneratedNote({
+                ...options,
+                attempt: options.attempt + 1,
+            });
+        } catch (error) {
+            console.error("[LeetCode QuickAdd] 自动打开题解失败：", error);
+            notice("题解已生成，但自动打开失败。");
+        }
+    }, options.delayMs);
+}
+
+function findNewOrUpdatedGeneratedNote(options) {
+    const candidates = findGeneratedNoteCandidates(options)
+        .filter(file =>
+            !options.existingPaths.has(file.path) ||
+            Number(file.stat?.mtime || 0) >= options.startedAt - 1000
+        )
+        .sort(compareGeneratedNoteCandidates);
+
+    return candidates[0] || null;
+}
+
+function findGeneratedNoteCandidates({ requestedPath, baseName, titleSlug }) {
+    const appInstance = getObsidianApp();
+    const vault = appInstance?.vault;
+    if (!vault) return [];
+
+    const candidates = new Map();
+    const exactFile = getVaultFileByPath(requestedPath);
+
+    if (isMarkdownFile(exactFile)) {
+        candidates.set(exactFile.path, exactFile);
+    }
+
+    const markdownFiles = typeof vault.getMarkdownFiles === "function"
+        ? vault.getMarkdownFiles()
+        : [];
+
+    for (const file of markdownFiles) {
+        if (!isMarkdownFile(file)) continue;
+
+        const sameBaseName = file.basename === baseName;
+        const sameSlug = titleSlug && getFileTitleSlug(file) === titleSlug;
+
+        if (sameBaseName || sameSlug) {
+            candidates.set(file.path, file);
+        }
+    }
+
+    return Array.from(candidates.values());
+}
+
+function compareGeneratedNoteCandidates(a, b) {
+    const aMtime = Number(a.stat?.mtime || 0);
+    const bMtime = Number(b.stat?.mtime || 0);
+
+    if (aMtime !== bMtime) return bMtime - aMtime;
+    return a.path.localeCompare(b.path);
+}
+
+function getFileTitleSlug(file) {
+    const appInstance = getObsidianApp();
+    const frontmatter = appInstance?.metadataCache?.getFileCache(file)?.frontmatter;
+    return String(frontmatter?.title_slug || frontmatter?.titleSlug || "").trim();
+}
+
+function getVaultFileByPath(pathValue) {
+    const vault = getObsidianApp()?.vault;
+    if (!vault) return null;
+
+    if (typeof vault.getFileByPath === "function") {
+        return vault.getFileByPath(pathValue);
+    }
+
+    if (typeof vault.getAbstractFileByPath === "function") {
+        return vault.getAbstractFileByPath(pathValue);
+    }
+
+    return null;
+}
+
+function isMarkdownFile(file) {
+    return Boolean(
+        file &&
+        typeof file.path === "string" &&
+        String(file.extension || "").toLowerCase() === "md"
+    );
+}
+
+async function openObsidianFile(file) {
+    const appInstance = getObsidianApp();
+    const workspace = appInstance?.workspace;
+    const existingLeaf = findOpenLeafForFile(file);
+    const leaf = existingLeaf || getNewTabLeaf(workspace);
+
+    if (!leaf || typeof leaf.openFile !== "function") {
+        throw new Error("当前 Obsidian workspace 不支持 openFile。");
+    }
+
+    if (!existingLeaf) {
+        await leaf.openFile(file, { active: true });
+    }
+
+    workspace.setActiveLeaf?.(leaf, { focus: true });
+}
+
+function findOpenLeafForFile(file) {
+    return findOpenLeafByPath(file.path);
+}
+
+function findOpenLeafByPath(pathValue) {
+    return getOpenMarkdownLeaves()
+        .find(leaf => leaf?.view?.file?.path === pathValue) || null;
+}
+
+function getOpenMarkdownLeaves() {
+    const workspace = getObsidianApp()?.workspace;
+    return typeof workspace?.getLeavesOfType === "function"
+        ? workspace.getLeavesOfType("markdown")
+        : [];
+}
+
+function getOpenMarkdownFilePaths() {
+    return Array.from(new Set(
+        getOpenMarkdownLeaves()
+            .map(leaf => leaf?.view?.file?.path)
+            .filter(Boolean)
+    ));
+}
+
+async function restoreOpenMarkdownTabs(paths, activePath) {
+    const appInstance = getObsidianApp();
+    const workspace = appInstance?.workspace;
+
+    if (!workspace || !Array.isArray(paths)) {
+        return;
+    }
+
+    for (const pathValue of paths) {
+        if (!pathValue || pathValue === activePath || findOpenLeafByPath(pathValue)) {
+            continue;
+        }
+
+        const file = getVaultFileByPath(pathValue);
+        if (!isMarkdownFile(file)) {
+            continue;
+        }
+
+        const leaf = getNewTabLeaf(workspace);
+        if (!leaf || typeof leaf.openFile !== "function") {
+            continue;
+        }
+
+        await leaf.openFile(file, { active: false });
+    }
+}
+
+function getNewTabLeaf(workspace) {
+    if (typeof workspace?.getLeaf !== "function") {
+        return null;
+    }
+
+    try {
+        return workspace.getLeaf("tab");
+    } catch (error) {
+        console.warn("[LeetCode QuickAdd] 新标签打开失败，尝试兼容模式：", error);
+        return workspace.getLeaf(true);
+    }
+}
+
+function getObsidianApp() {
+    if (QuickAdd?.app) return QuickAdd.app;
+    if (typeof app !== "undefined") return app;
+    return null;
+}
+
+function normalizeObsidianPath(pathValue) {
+    return String(pathValue || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .trim();
+}
+
+function ensureMarkdownExtension(pathValue) {
+    return /\.md$/i.test(pathValue) ? pathValue : `${pathValue}.md`;
+}
+
+function getObsidianBaseName(pathValue) {
+    return normalizeObsidianPath(pathValue)
+        .split("/")
+        .pop()
+        .replace(/\.md$/i, "");
 }
 
 // ==============================

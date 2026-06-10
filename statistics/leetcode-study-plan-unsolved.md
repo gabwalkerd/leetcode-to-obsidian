@@ -1,10 +1,10 @@
 ```dataviewjs
 // ==============================
 // LeetCode Study Plan Unsolved Problems
-// 适配目录：notes/leetcode
+// 适配目录：任意 Solution/solutions 目录及其子目录
 // ==============================
 
-const LEETCODE_FOLDER = "notes/leetcode";
+const LEETCODE_FOLDER_NAMES = ["solution", "solutions"];
 const STUDY_PLAN_CONFIG_FILE = "leetcode-study-plan-config";
 const STUDY_PLAN_CURRENT_FILE = "leetcode-study-plan-current";
 const STUDY_PLAN_CONFIG_TYPE = "leetcode-study-plan-config";
@@ -13,7 +13,7 @@ const LEETCODE_PROBLEM_BASE_URL = "https://leetcode.cn/problems/";
 
 const pages = dv.pages()
   .where(p =>
-    p.file.folder === LEETCODE_FOLDER &&
+    isInLeetCodeSolutionFolder(p) &&
     !p.file.name.includes("统计") &&
     !p.file.name.includes("statistics") &&
     String(p.type ?? "").trim() === "leetcode" &&
@@ -46,18 +46,138 @@ function asArray(value) {
   return [value];
 }
 
+function normalizeFolderPath(value) {
+  const rawValue = value?.path ?? value?.file?.path ?? value;
+
+  return String(rawValue ?? "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\[\[|\]\]$/g, "")
+    .replace(/\.md$/i, "")
+    .replace(/^\/+|\/+$/g, "");
+}
+
+function collectFolderPaths(...values) {
+  const seen = new Set();
+  const folders = [];
+
+  for (const value of values) {
+    for (const item of asArray(value)) {
+      const rawFolders = typeof item === "string"
+        ? item.split(",")
+        : [item];
+
+      for (const rawFolder of rawFolders) {
+        const folder = normalizeFolderPath(rawFolder);
+        if (!folder || seen.has(folder)) continue;
+        seen.add(folder);
+        folders.push(folder);
+      }
+    }
+  }
+
+  return folders;
+}
+
 function sameText(a, b) {
   return String(a ?? "").trim() === String(b ?? "").trim();
 }
 
 function isSameFolderOrChild(page, folder) {
-  if (!folder) return true;
-  return page.file.folder === folder || page.file.folder.startsWith(`${folder}/`);
+  return isSameFolderPathOrChild(page.file.folder, folder);
+}
+
+function isSameFolderPathOrChild(folderPath, folder) {
+  const currentFolder = normalizeFolderPath(folderPath).toLowerCase();
+  const targetFolder = normalizeFolderPath(folder).toLowerCase();
+
+  if (!targetFolder) return true;
+  return currentFolder === targetFolder || currentFolder.startsWith(`${targetFolder}/`);
+}
+
+function getStudyPlanBaseFolder() {
+  const currentFolder = normalizeFolderPath(dv.current()?.file?.folder ?? "");
+  const parts = currentFolder.split("/").filter(Boolean);
+  const lastPart = parts[parts.length - 1]?.toLowerCase();
+
+  return lastPart === "statistics"
+    ? parts.slice(0, -1).join("/")
+    : currentFolder;
+}
+
+function getStudyPlanFolderCandidates(folder) {
+  const normalized = normalizeFolderPath(folder);
+  if (!normalized) return [];
+
+  const baseFolder = getStudyPlanBaseFolder();
+  const candidates = [normalized];
+  const normalizedLower = normalized.toLowerCase();
+  const baseLower = baseFolder.toLowerCase();
+
+  if (baseFolder && normalizedLower !== baseLower && !normalizedLower.startsWith(`${baseLower}/`)) {
+    candidates.push(`${baseFolder}/${normalized}`);
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function isInLeetCodeSolutionFolder(page) {
+  const folder = String(page.file.folder ?? "");
+  if (!folder) return false;
+
+  return folder
+    .split("/")
+    .map(part => part.trim().toLowerCase())
+    .some(part => LEETCODE_FOLDER_NAMES.includes(part));
 }
 
 function pagePathInCurrentFolder(fileName) {
   const currentFolder = dv.current()?.file?.folder ?? "";
   return currentFolder ? `${currentFolder}/${fileName}` : fileName;
+}
+
+function getPageSolutionFolders(page) {
+  if (!page) return [];
+
+  return collectFolderPaths(
+    page.solution_folders,
+    page.solutionFolders,
+    page.solution_folder,
+    page.solutionFolder,
+    page.solution_dirs,
+    page.solutionDirs,
+    page.solution_dir,
+    page.solutionDir
+  );
+}
+
+function getStudyPlanSolutionFolders(selection) {
+  return getPageSolutionFolders(selection.configPage);
+}
+
+function isRecordInFolders(record, folders) {
+  if (!folders.length) return true;
+  return folders.some(folder =>
+    getStudyPlanFolderCandidates(folder).some(candidate =>
+      isSameFolderPathOrChild(record.folder, candidate)
+    )
+  );
+}
+
+function filterRecordsByFolders(sourceRecords, folders) {
+  if (!folders.length) return sourceRecords;
+  return sourceRecords.filter(record => isRecordInFolders(record, folders));
+}
+
+function createSolvedKeySets(sourceRecords) {
+  return {
+    slugSet: new Set(sourceRecords.map(r => r.titleSlug).filter(Boolean)),
+    idSet: new Set(sourceRecords.map(r => r.idText).filter(Boolean)),
+  };
+}
+
+function formatStudyPlanSolutionScope(folders) {
+  return folders.length ? folders.join("、") : "全部题解";
 }
 
 function findStudyPlanCurrentPage() {
@@ -106,6 +226,7 @@ function findStudyPlanSelection() {
   if (!configs.length) {
     return {
       configPage: null,
+      currentPage,
       activePlanId,
       configCount: 0,
       message: `未找到题单配置。请把 ${STUDY_PLAN_CONFIG_FILE}.md 或其他题单配置放到统计页同一文件夹。`,
@@ -120,6 +241,7 @@ function findStudyPlanSelection() {
 
     return {
       configPage: selected ?? null,
+      currentPage,
       activePlanId,
       configCount: configs.length,
       message: selected
@@ -132,6 +254,7 @@ function findStudyPlanSelection() {
 
   return {
     configPage: selected,
+    currentPage,
     activePlanId: normalizePlanId(selected?.plan_id ?? selected?.file?.name),
     configCount: configs.length,
     message: configs.length > 1
@@ -166,19 +289,12 @@ const records = pages
   .map(p => ({
     idText: normalizeId(p.lc_id ?? p["leetcode-index"] ?? ""),
     titleSlug: normalizeSlug(p.title_slug ?? p.titleSlug ?? ""),
+    folder: p.file.folder,
   }));
 
-const solvedSlugSet = new Set(
-  records.map(r => r.titleSlug).filter(Boolean)
-);
-
-const solvedIdSet = new Set(
-  records.map(r => r.idText).filter(Boolean)
-);
-
-function isStudyPlanProblemSolved(problem) {
-  if (problem.slug && solvedSlugSet.has(problem.slug)) return true;
-  if (problem.id && solvedIdSet.has(problem.id)) return true;
+function isStudyPlanProblemSolved(problem, solvedKeys) {
+  if (problem.slug && solvedKeys.slugSet.has(problem.slug)) return true;
+  if (problem.id && solvedKeys.idSet.has(problem.id)) return true;
   return false;
 }
 
@@ -202,11 +318,11 @@ function difficultyClass(difficulty) {
   return "unknown";
 }
 
-function groupUnsolvedProblems(problems) {
+function groupUnsolvedProblems(problems, solvedKeys) {
   const groups = new Map();
 
   for (const problem of problems) {
-    if (isStudyPlanProblemSolved(problem)) continue;
+    if (isStudyPlanProblemSolved(problem, solvedKeys)) continue;
 
     if (!groups.has(problem.group)) {
       groups.set(problem.group, []);
@@ -263,7 +379,7 @@ style.textContent = `
 
 .leetcode-unsolved-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -282,6 +398,9 @@ style.textContent = `
 }
 
 .leetcode-unsolved-card-value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 22px;
   line-height: 1.1;
   font-weight: 800;
@@ -438,6 +557,7 @@ function createSummaryCard(label, value) {
   const valueEl = document.createElement("div");
   valueEl.className = "leetcode-unsolved-card-value";
   valueEl.textContent = value;
+  valueEl.title = value;
 
   card.appendChild(labelEl);
   card.appendChild(valueEl);
@@ -527,6 +647,10 @@ function renderEmpty(root, message) {
 }
 
 const selection = findStudyPlanSelection();
+const solutionFolders = getStudyPlanSolutionFolders(selection);
+const studyPlanRecords = filterRecordsByFolders(records, solutionFolders);
+const solvedKeys = createSolvedKeySets(studyPlanRecords);
+const solutionScopeText = formatStudyPlanSolutionScope(solutionFolders);
 const root = dv.el("div", "", {
   cls: "leetcode-unsolved-root",
 });
@@ -542,7 +666,7 @@ titleWrap.appendChild(title);
 
 const subtitle = document.createElement("div");
 subtitle.className = "leetcode-unsolved-subtitle";
-subtitle.textContent = "未做题目";
+subtitle.textContent = `未做题目 · 统计目录：${solutionScopeText}`;
 titleWrap.appendChild(subtitle);
 
 header.appendChild(titleWrap);
@@ -553,7 +677,7 @@ if (!selection.configPage) {
   renderEmpty(root, selection.message);
 } else {
   const problems = normalizeStudyPlanProblems(selection.configPage.problems);
-  const unsolvedGroups = groupUnsolvedProblems(problems);
+  const unsolvedGroups = groupUnsolvedProblems(problems, solvedKeys);
   const unsolvedCount = Array.from(unsolvedGroups.values())
     .reduce((sum, list) => sum + list.length, 0);
   const solvedCount = problems.length - unsolvedCount;
@@ -563,6 +687,7 @@ if (!selection.configPage) {
   summary.appendChild(createSummaryCard("未完成", `${unsolvedCount} 题`));
   summary.appendChild(createSummaryCard("已完成", `${solvedCount} 题`));
   summary.appendChild(createSummaryCard("题单总数", `${problems.length} 题`));
+  summary.appendChild(createSummaryCard("统计目录", solutionScopeText));
   root.appendChild(summary);
 
   if (selection.message) {

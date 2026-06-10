@@ -2,10 +2,10 @@
 ```dataviewjs
 // ==============================
 // LeetCode DataviewJS Statistics
-// 适配目录：notes/leetcode
+// 适配目录：任意 Solution/solutions 目录及其子目录
 // ==============================
 
-const LEETCODE_FOLDER = "notes/leetcode";
+const LEETCODE_FOLDER_NAMES = ["solution", "solutions"];
 const STUDY_PLAN_CONFIG_FILE = "leetcode-study-plan-config";
 const STUDY_PLAN_CURRENT_FILE = "leetcode-study-plan-current";
 const STUDY_PLAN_UNSOLVED_FILE = "leetcode-study-plan-unsolved";
@@ -16,7 +16,7 @@ const HEATMAP_DAYS = 180; // 显示最近 180 天，可以改成 365
 
 const pages = dv.pages()
   .where(p =>
-    p.file.folder === LEETCODE_FOLDER &&
+    isInLeetCodeSolutionFolder(p) &&
     !p.file.name.includes("统计") &&
     !p.file.name.includes("statistics") &&
     String(p.type ?? "").trim() === "leetcode" &&
@@ -102,13 +102,89 @@ function asArray(value) {
   return [value];
 }
 
+function normalizeFolderPath(value) {
+  const rawValue = value?.path ?? value?.file?.path ?? value;
+
+  return String(rawValue ?? "")
+    .trim()
+    .replaceAll("\\", "/")
+    .replace(/^\[\[|\]\]$/g, "")
+    .replace(/\.md$/i, "")
+    .replace(/^\/+|\/+$/g, "");
+}
+
+function collectFolderPaths(...values) {
+  const seen = new Set();
+  const folders = [];
+
+  for (const value of values) {
+    for (const item of asArray(value)) {
+      const rawFolders = typeof item === "string"
+        ? item.split(",")
+        : [item];
+
+      for (const rawFolder of rawFolders) {
+        const folder = normalizeFolderPath(rawFolder);
+        if (!folder || seen.has(folder)) continue;
+        seen.add(folder);
+        folders.push(folder);
+      }
+    }
+  }
+
+  return folders;
+}
+
 function normalizePlanId(value) {
   return String(value ?? "").trim();
 }
 
 function isSameFolderOrChild(page, folder) {
-  if (!folder) return true;
-  return page.file.folder === folder || page.file.folder.startsWith(`${folder}/`);
+  return isSameFolderPathOrChild(page.file.folder, folder);
+}
+
+function isSameFolderPathOrChild(folderPath, folder) {
+  const currentFolder = normalizeFolderPath(folderPath).toLowerCase();
+  const targetFolder = normalizeFolderPath(folder).toLowerCase();
+
+  if (!targetFolder) return true;
+  return currentFolder === targetFolder || currentFolder.startsWith(`${targetFolder}/`);
+}
+
+function getStudyPlanBaseFolder() {
+  const currentFolder = normalizeFolderPath(dv.current()?.file?.folder ?? "");
+  const parts = currentFolder.split("/").filter(Boolean);
+  const lastPart = parts[parts.length - 1]?.toLowerCase();
+
+  return lastPart === "statistics"
+    ? parts.slice(0, -1).join("/")
+    : currentFolder;
+}
+
+function getStudyPlanFolderCandidates(folder) {
+  const normalized = normalizeFolderPath(folder);
+  if (!normalized) return [];
+
+  const baseFolder = getStudyPlanBaseFolder();
+  const candidates = [normalized];
+  const normalizedLower = normalized.toLowerCase();
+  const baseLower = baseFolder.toLowerCase();
+
+  if (baseFolder && normalizedLower !== baseLower && !normalizedLower.startsWith(`${baseLower}/`)) {
+    candidates.push(`${baseFolder}/${normalized}`);
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function isInLeetCodeSolutionFolder(page) {
+  const folder = String(page.file.folder ?? "");
+  if (!folder) return false;
+
+  return folder
+    .split("/")
+    .map(part => part.trim().toLowerCase())
+    .some(part => LEETCODE_FOLDER_NAMES.includes(part));
 }
 
 function sameText(a, b) {
@@ -118,6 +194,50 @@ function sameText(a, b) {
 function pagePathInCurrentFolder(fileName) {
   const currentFolder = dv.current()?.file?.folder ?? "";
   return currentFolder ? `${currentFolder}/${fileName}` : fileName;
+}
+
+function getPageSolutionFolders(page) {
+  if (!page) return [];
+
+  return collectFolderPaths(
+    page.solution_folders,
+    page.solutionFolders,
+    page.solution_folder,
+    page.solutionFolder,
+    page.solution_dirs,
+    page.solutionDirs,
+    page.solution_dir,
+    page.solutionDir
+  );
+}
+
+function getStudyPlanSolutionFolders(selection) {
+  return getPageSolutionFolders(selection.configPage);
+}
+
+function isRecordInFolders(record, folders) {
+  if (!folders.length) return true;
+  return folders.some(folder =>
+    getStudyPlanFolderCandidates(folder).some(candidate =>
+      isSameFolderPathOrChild(record.folder, candidate)
+    )
+  );
+}
+
+function filterRecordsByFolders(sourceRecords, folders) {
+  if (!folders.length) return sourceRecords;
+  return sourceRecords.filter(record => isRecordInFolders(record, folders));
+}
+
+function createSolvedKeySets(sourceRecords) {
+  return {
+    slugSet: new Set(sourceRecords.map(r => r.titleSlug).filter(Boolean)),
+    idSet: new Set(sourceRecords.map(r => r.idText).filter(Boolean)),
+  };
+}
+
+function formatStudyPlanSolutionScope(folders) {
+  return folders.length ? folders.join("、") : "全部题解";
 }
 
 function compareByCreated(a, b) {
@@ -150,6 +270,7 @@ const records = pages
     difficulty: p.difficulty ?? "",
     link: p.file.link,
     path: p.file.path,
+    folder: p.file.folder,
   }))
   .filter(r => r.date !== "未知日期" && r.moment.isValid())
   .sort((a, b) => {
@@ -174,14 +295,6 @@ const today = window.moment().startOf("day");
 const monthStart = today.clone().startOf("month");
 
 const totalCount = records.length;
-
-const solvedSlugSet = new Set(
-  records.map(r => r.titleSlug).filter(Boolean)
-);
-
-const solvedIdSet = new Set(
-  records.map(r => r.idText).filter(Boolean)
-);
 
 const monthCount = records.filter(r =>
   r.moment.isSameOrAfter(monthStart, "day")
@@ -236,6 +349,7 @@ function findStudyPlanSelection() {
   if (!configs.length) {
     return {
       configPage: null,
+      currentPage,
       activePlanId,
       configCount: 0,
       message: `未找到题单配置。请把 ${STUDY_PLAN_CONFIG_FILE}.md 或其他题单配置放到统计页同一文件夹。`,
@@ -250,6 +364,7 @@ function findStudyPlanSelection() {
 
     return {
       configPage: selected ?? null,
+      currentPage,
       activePlanId,
       configCount: configs.length,
       message: selected
@@ -266,6 +381,7 @@ function findStudyPlanSelection() {
 
   return {
     configPage: selected,
+    currentPage,
     activePlanId: normalizePlanId(selected?.plan_id ?? selected?.file?.name),
     configCount: configs.length,
     message: configs.length > 1
@@ -294,9 +410,9 @@ function normalizeStudyPlanProblems(rawProblems) {
     });
 }
 
-function isStudyPlanProblemSolved(problem) {
-  if (problem.slug && solvedSlugSet.has(problem.slug)) return true;
-  if (problem.id && solvedIdSet.has(problem.id)) return true;
+function isStudyPlanProblemSolved(problem, solvedKeys) {
+  if (problem.slug && solvedKeys.slugSet.has(problem.slug)) return true;
+  if (problem.id && solvedKeys.idSet.has(problem.id)) return true;
   return false;
 }
 
@@ -311,8 +427,11 @@ function buildStudyPlanProgress(selection) {
   }
 
   const configPage = selection.configPage;
+  const solutionFolders = getStudyPlanSolutionFolders(selection);
+  const studyPlanRecords = filterRecordsByFolders(records, solutionFolders);
+  const solvedKeys = createSolvedKeySets(studyPlanRecords);
   const problems = normalizeStudyPlanProblems(configPage.problems);
-  const completedProblems = problems.filter(isStudyPlanProblemSolved);
+  const completedProblems = problems.filter(problem => isStudyPlanProblemSolved(problem, solvedKeys));
   const targetDate = formatDate(configPage.target_date);
   const targetMoment = targetDate !== "未知日期"
     ? window.moment(targetDate, "YYYY-MM-DD").startOf("day")
@@ -325,8 +444,18 @@ function buildStudyPlanProgress(selection) {
   const daysAvailable = hasValidTarget && targetMoment.isSameOrAfter(today, "day")
     ? targetMoment.diff(today, "days") + 1
     : 0;
-  const hasSolvedToday = byDate.has(today.format("YYYY-MM-DD"));
-  const paceDaysAvailable = hasSolvedToday
+  const todayCompletedCount = studyPlanRecords.filter(record =>
+    record.moment.isSame(today, "day")
+  ).length;
+  const dailyRequiredWithToday = remaining === 0
+    ? 0
+    : daysAvailable > 0
+      ? Math.ceil(remaining / daysAvailable)
+      : null;
+  const hasMetTodayPace = remaining > 0
+    && dailyRequiredWithToday !== null
+    && todayCompletedCount >= dailyRequiredWithToday;
+  const paceDaysAvailable = hasMetTodayPace
     ? Math.max(daysAvailable - 1, 0)
     : daysAvailable;
   const dailyRequired = remaining === 0
@@ -541,7 +670,7 @@ style.textContent = `
 
 .leetcode-study-plan-metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
 }
 

@@ -56,7 +56,9 @@ Browser (LeetCode CN)  ──Tampermonkey──▶  Clipboard (JSON payload)
 
 1. Copy [`Scripts/leetcode-quickadd.js`](./Scripts/leetcode-quickadd.js) into your Obsidian vault (e.g. `<vault>/Scripts/`).
 2. In Obsidian → **Settings → QuickAdd → Manage Macros**, create a macro and add a **User Script** action pointing to `leetcode-quickadd.js`.
-3. (Optional) Set the **LeetCode Tag Prefix** option (default `leetcode/`).
+3. (Optional) Configure script options:
+   - **LeetCode Tag Prefix** only affects frontmatter topic tags. Default: `leetcode/`.
+   - **LeetCode Output Folder** controls where generated notes are created, for example `solutions/hot100again`. Leave it empty to use the destination configured in the QuickAdd Template Choice.
 
 ### 3. Add the template
 
@@ -65,6 +67,7 @@ Browser (LeetCode CN)  ──Tampermonkey──▶  Clipboard (JSON payload)
    - Uses the macro above as a script step.
    - Uses `leetcode-problem-template_zh.md` as the template file.
    - Sets the file name to `{{VALUE:fileName}}`.
+   - If **LeetCode Output Folder** is configured, do not also choose the same destination folder here, or the path may be duplicated.
 
 ## 💡 Usage
 
@@ -106,7 +109,7 @@ The QuickAdd script exposes the following variables for templates:
 | `{{VALUE:problemStatement}}` | HTML problem statement converted to Obsidian Markdown |
 | `{{VALUE:formattedHints}}` | Hints rendered as `>[!Hint]-` callouts |
 | `{{VALUE:tags}}` | YAML list of `leetcode/<slug>` tags |
-| `{{VALUE:fileName}}` | Sanitized `id. title` filename |
+| `{{VALUE:fileName}}` | Sanitized `id. title` filename; includes **LeetCode Output Folder** when configured |
 | `{{VALUE:language}}` | Normalized language id (`cpp`, `python`, `go`, ...) |
 | `{{VALUE:solutionCode}}` | Your solution code |
 | `{{VALUE:sourceUrl}}` | Source URL (from userscript) |
@@ -127,7 +130,7 @@ To use it:
 
 1. Copy `statistics/leetcode-statistics.md`, `statistics/leetcode-study-plan-unsolved.md`, `statistics/leetcode-favorites.md`, `statistics/leetcode-study-plan-current.md`, and your study-plan config files into the same folder in your Obsidian vault. Study-plan configs may also live in subfolders next to the statistics page.
 2. Install the [Dataview](https://github.com/blacksmithgu/obsidian-dataview) plugin (JavaScript queries must be enabled).
-3. Ensure notes in your `notes/leetcode` folder have `type: leetcode`, `status: done`, and `done_date` fields (the new templates generate these automatically).
+3. Ensure notes in your `solutions` folder have `type: leetcode`, `status: done`, and `done_date` fields (the new templates generate these automatically).
 4. Open the statistics page to see current study-plan progress, deadline, suggested pace, and solved problems grouped by date. Click "未做题目" to inspect remaining problems for the active plan, or "收藏题解" to inspect favorited solutions.
 
 `leetcode-study-plan-current.md` defaults to `active_plan_id: hot100`. Before first use, generate a matching config or change `active_plan_id` to an existing local plan ID.

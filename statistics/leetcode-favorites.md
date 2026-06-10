@@ -1,10 +1,10 @@
 ```dataviewjs
 // ==============================
 // LeetCode Favorite Solutions
-// 适配目录：notes/leetcode
+// 适配目录：任意 Solution/solutions 目录及其子目录
 // ==============================
 
-const LEETCODE_FOLDER = "notes/leetcode";
+const LEETCODE_FOLDER_NAMES = ["solution", "solutions"];
 
 function isFavoriteValue(value) {
   if (value === true) return true;
@@ -43,9 +43,19 @@ function pagePathInCurrentFolder(fileName) {
   return currentFolder ? `${currentFolder}/${fileName}` : fileName;
 }
 
+function isInLeetCodeSolutionFolder(page) {
+  const folder = String(page.file.folder ?? "");
+  if (!folder) return false;
+
+  return folder
+    .split("/")
+    .map(part => part.trim().toLowerCase())
+    .some(part => LEETCODE_FOLDER_NAMES.includes(part));
+}
+
 const records = dv.pages()
   .where(p =>
-    p.file.folder === LEETCODE_FOLDER &&
+    isInLeetCodeSolutionFolder(p) &&
     String(p.type ?? "").trim() === "leetcode" &&
     isFavoriteValue(p.favorite ?? p.starred)
   )

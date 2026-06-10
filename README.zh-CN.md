@@ -56,7 +56,9 @@
 
 1. 把 [`Scripts/leetcode-quickadd.js`](./Scripts/leetcode-quickadd.js) 复制到你的 Obsidian Vault（例如 `<vault>/Scripts/`）。
 2. 在 Obsidian → **设置 → QuickAdd → Manage Macros** 中新建一个 Macro，并添加一个 **User Script** 步骤，指向 `leetcode-quickadd.js`。
-3.（可选）配置 **LeetCode Tag Prefix**（默认为 `leetcode/`）。
+3.（可选）配置脚本选项：
+   - **LeetCode Tag Prefix**：只影响 frontmatter 里的题目标签，默认为 `leetcode/`。
+   - **LeetCode Output Folder**：题解笔记生成目录，例如 `solutions/hot100again`。留空时使用 QuickAdd Template Choice 自己配置的目标目录。
 
 ### 3. 添加模板
 
@@ -65,6 +67,7 @@
    - 在脚本步骤中调用上面创建的 Macro。
    - 模板文件选择 `leetcode-problem-template_zh.md`。
    - 文件名设置为 `{{VALUE:fileName}}`。
+   - 如果已经配置了 **LeetCode Output Folder**，这里不要再额外选择同一个目标文件夹，避免路径重复。
 
 ## 💡 使用方式
 
@@ -106,7 +109,7 @@ QuickAdd 脚本会向模板暴露以下变量：
 | `{{VALUE:problemStatement}}` | 转换后的 Markdown 题面 |
 | `{{VALUE:formattedHints}}` | 渲染为 `>[!Hint]-` callout 的提示 |
 | `{{VALUE:tags}}` | YAML 形式的 `leetcode/<slug>` 标签列表 |
-| `{{VALUE:fileName}}` | 清理过非法字符的 `编号. 标题` 文件名 |
+| `{{VALUE:fileName}}` | 清理过非法字符的 `编号. 标题` 文件名；配置 **LeetCode Output Folder** 后会自动带上目录 |
 | `{{VALUE:language}}` | 规范化的语言标识（`cpp`、`python`、`go` 等） |
 | `{{VALUE:solutionCode}}` | 你的解题代码 |
 | `{{VALUE:sourceUrl}}` | 源 URL（来自油猴脚本） |
@@ -127,7 +130,7 @@ QuickAdd 脚本会向模板暴露以下变量：
 
 1. 把 `statistics/leetcode-statistics.md`、`statistics/leetcode-study-plan-unsolved.md`、`statistics/leetcode-favorites.md`、`statistics/leetcode-study-plan-current.md` 和题单配置文件复制到你的 Obsidian Vault 同一个文件夹；题单配置也可以放在统计页同目录的子文件夹中。
 2. 安装 [Dataview](https://github.com/blacksmithgu/obsidian-dataview) 插件（需要开启 JavaScript 查询）。
-3. 确保笔记的 `notes/leetcode` 文件夹下有 `type: leetcode`、`status: done`、`done_date` 字段（新模板已自动生成这些字段）。
+3. 确保笔记的 `solutions` 文件夹下有 `type: leetcode`、`status: done`、`done_date` 字段（新模板已自动生成这些字段）。
 4. 打开统计页面即可查看当前题单进度、截止日期、建议节奏，以及按日期分组的刷题记录；点击“未做题目”可以查看当前题单剩余题目，点击“收藏题解”可以查看收藏列表。
 
 `leetcode-study-plan-current.md` 默认选择 `active_plan_id: hot100`。首次使用前，需要生成一个同名题单配置，或把 `active_plan_id` 改成你已有的题单 ID。

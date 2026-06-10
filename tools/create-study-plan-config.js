@@ -46,10 +46,12 @@ Options:
   --output-dir <dir>          Write to <dir>/<plan-id>.md.
   --stdout                    Print markdown config to stdout. This is the default.
   --plan-id <id>              Override frontmatter plan_id. Default: plan slug.
+  --solution-folder <dir>     Default folder for this plan's progress stats. Repeat for multiple folders.
   --help                      Show this help.
 
 Examples:
   node tools/create-study-plan-config.js https://leetcode.cn/studyplan/top-100-liked/ --target-date 2026-12-31 --plan-id hot100 --output-dir statistics/study-plans
+  node tools/create-study-plan-config.js top-100-liked --plan-id hot100 --solution-folder solutions/hot100again --output-dir statistics/study-plans
   node tools/create-study-plan-config.js top-100-liked --plan-id hot100 --stdout
 `.trim());
 }
@@ -61,6 +63,7 @@ function parseArgs(argv) {
         outputDir: "",
         stdout: false,
         planId: "",
+        solutionFolders: [],
         input: "",
     };
 
@@ -94,6 +97,11 @@ function parseArgs(argv) {
 
         if (arg === "--plan-id") {
             options.planId = readFlagValue(argv, ++i, arg);
+            continue;
+        }
+
+        if (arg === "--solution-folder") {
+            options.solutionFolders.push(readFlagValue(argv, ++i, arg));
             continue;
         }
 
@@ -232,7 +240,29 @@ function safeFileName(value) {
     return text || "study-plan";
 }
 
-function renderConfig({ plan, problems, targetDate, sourceUrl, planId }) {
+function normalizeFolderPath(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "");
+}
+
+function normalizeFolderList(values) {
+    const seen = new Set();
+    const folders = [];
+
+    for (const value of values || []) {
+        const folder = normalizeFolderPath(value);
+        if (!folder || seen.has(folder)) continue;
+        seen.add(folder);
+        folders.push(folder);
+    }
+
+    return folders;
+}
+
+function renderConfig({ plan, problems, targetDate, sourceUrl, planId, solutionFolders }) {
+    const folders = normalizeFolderList(solutionFolders);
     const lines = [
         "---",
         "type: leetcode-study-plan-config",
@@ -240,8 +270,16 @@ function renderConfig({ plan, problems, targetDate, sourceUrl, planId }) {
         `plan_name: ${yamlScalar(plan.name || plan.slug)}`,
         `target_date: ${targetDate}`,
         `source_url: ${sourceUrl}`,
-        "problems:",
     ];
+
+    if (folders.length) {
+        lines.push("solution_folders:");
+        for (const folder of folders) {
+            lines.push(`  - ${yamlScalar(folder)}`);
+        }
+    }
+
+    lines.push("problems:");
 
     for (const problem of problems) {
         lines.push(`  - id: ${yamlScalar(problem.id)}`);
@@ -256,6 +294,8 @@ function renderConfig({ plan, problems, targetDate, sourceUrl, planId }) {
     lines.push(`# ${plan.name || plan.slug} 题单配置`);
     lines.push("");
     lines.push("把这个文件放在 `leetcode-statistics.md` 同目录或子目录中。修改 `target_date` 可以调整目标完成日期；切换当前题单请修改 `leetcode-study-plan-current.md` 的 `active_plan_id`，或运行 `tools/switch-study-plan.js`。");
+    lines.push("");
+    lines.push("可选：设置 `solution_folders` 后，题单进度和未做题目只统计这些目录中的题解；总完成数、热力图、连续天数仍统计全部题解。");
 
     return `${lines.join("\n")}\n`;
 }
@@ -299,6 +339,7 @@ async function main() {
         targetDate,
         sourceUrl,
         planId,
+        solutionFolders: options.solutionFolders,
     });
 
     if ((options.output || options.outputDir) && !options.stdout) {
